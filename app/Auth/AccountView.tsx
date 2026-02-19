@@ -4,23 +4,15 @@ import { Text, Avatar, Divider, IconButton } from 'react-native-paper';
 import { useUser } from '../../src/contexts/UserContext';
 
 type Props = {
-  navigation: any; // Allows navigating to other screens
-  route: any;      // Receives data from previous screens
+  navigation: any; 
+  route: any;      
 };
 
-
 const AccountView = ({ navigation, route }: Props) => {
-  const { userData } = useUser();
-  
-  // --------------------------------------------------
-  // State: Data that can change
-  // --------------------------------------------------
-  const [username, setUsername] = useState(userData.username || 'Guest');
-  const [email, setEmail] = useState(userData.email || 'guest@example.com');
+  const { userData, setUserData } = useUser();
+    const [username, setUsername] = useState(userData.username || 'Harry');
+    const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
 
-  // --------------------------------------------------
-  // Effect: Update data when coming from other screens or when userData changes
-  // --------------------------------------------------
   useEffect(() => {
     if (userData.username) {
       setUsername(userData.username);
@@ -28,17 +20,16 @@ const AccountView = ({ navigation, route }: Props) => {
     if (userData.email) {
       setEmail(userData.email);
     }
-  }, [userData.username, userData.email]);
+  },[userData]);
 
-  useEffect(() => {
-    if (route.params?.username) {
-      setUsername(route.params.username);
+    const handleUpdate = () => {
+    setUserData({
+      username: username,
+      email: email,
+      phonenumber: userData.phonenumber,
+      password: userData.password,
+    });
     }
-    if (route.params?.email) {
-      setEmail(route.params.email);
-    }
-  }, [route.params?.username, route.params?.email]);
-
 
   // When menu icon is pressed - navigate back to home
   const handleMenuPress = () => {

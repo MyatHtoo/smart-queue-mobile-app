@@ -18,19 +18,32 @@ import { useUser } from "../../src/contexts/UserContext";
 
 export default function LoginPage() {
   const navigation = useNavigation();
-  const { setUserData } = useUser();
+  const { userData, setUserData } = useUser();
 
   const [usernameOrEmail, setUsernameOrEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loginWithPhone, setLoginWithPhone] = useState(false);
 
   const handleLogin = async () => {
-    console.log("Login with:", usernameOrEmail, password);
-    setUserData({
-      username: usernameOrEmail,
-      email: usernameOrEmail,
-      password: password,
-    });
+    if (loginWithPhone) {
+      console.log("Login with phone:", phoneNumber, password);
+      setUserData({
+        username: userData.username || '',
+        email: userData.email || '',
+        phonenumber: phoneNumber,
+        password: password,
+      });
+    } else {
+      console.log("Login with:", usernameOrEmail, password);
+      setUserData({
+        username: usernameOrEmail,
+        email: usernameOrEmail,
+        phonenumber: userData.phonenumber || '',
+        password: password,
+      });
+    }
     (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
   };
 
@@ -43,16 +56,7 @@ export default function LoginPage() {
     setUserData({
       username: "Google User",
       email: "user@gmail.com",
-      password: "",
-    });
-    (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
-  };
-
-  const handleFacebookSignIn = () => {
-    console.log("Facebook sign in");
-    setUserData({
-      username: "Facebook User",
-      email: "user@facebook.com",
+      phonenumber: userData.phonenumber || '',
       password: "",
     });
     (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
@@ -83,15 +87,16 @@ export default function LoginPage() {
 
               {/* Form */}
               <View style={{ gap: 20 }}>
-                {/* Username or Email Field */}
+                {/* Username/Email or Phone Number Field */}
                 <View>
                   <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-                    Username or Email
+                    {loginWithPhone ? "Phone Number" : "Username or Email"}
                   </Text>
                   <TextInput
-                    placeholder="Enter your username or email"
-                    value={usernameOrEmail}
-                    onChangeText={setUsernameOrEmail}
+                    placeholder={loginWithPhone ? "Enter your phone number" : "Enter your username or email"}
+                    value={loginWithPhone ? phoneNumber : usernameOrEmail}
+                    onChangeText={loginWithPhone ? setPhoneNumber : setUsernameOrEmail}
+                    keyboardType={loginWithPhone ? "phone-pad" : "default"}
                     style={{
                       backgroundColor: "#F5F5F5",
                       borderRadius: 12,
@@ -154,6 +159,17 @@ export default function LoginPage() {
                     <Text style={{ fontWeight: "600", color: "#111827" }}>Click me</Text>
                   </Text>
                 </TouchableOpacity>
+
+                {/* Toggle Login Mode */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
+                  <TouchableOpacity onPress={() => setLoginWithPhone(!loginWithPhone)}>
+                    <Text style={{ marginHorizontal: 16, color: "#6B7280" }}>
+                      {loginWithPhone ? "Login with Email" : "Login with Phone Number"}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
+                </View>
 
                 {/* Login Button */}
                 <View style={{ marginTop: 16 }}>

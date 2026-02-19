@@ -10,7 +10,6 @@ type Props = {
 
 const EditProfileScreen = ({ navigation, route }: Props) => {
   const { userData, setUserData } = useUser();
-
   const [username, setUsername] = useState(userData.username || 'Harry');
   const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
   const [phonenumber, setPhonenumber] = useState(userData.phonenumber || '1234567890');
@@ -19,13 +18,12 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   const [isUpdated, setIsUpdated] = useState(false);
 
   useEffect(() => {
-    if (route.params?.username) {
-      setUsername(route.params.username);
-    }
-    if (route.params?.email) {
-      setEmail(route.params.email);
-    }
-  }, [route.params]);
+    setUsername(userData.username || 'Harry');
+    setEmail(userData.email || 'hmin44851@gmail.com');
+    setPhonenumber(userData.phonenumber || '1234567890');
+    setPassword(userData.password || '12345678');
+  }, [userData]);
+
 
   const handleUpdate = () => {
     setUserData({
@@ -33,6 +31,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       email: email,
       phonenumber: phonenumber,
       password: password,
+
     });
 
     Alert.alert(
@@ -99,10 +98,11 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
             activeOutlineColor="#1A80A4"
           />
 
-          {/* <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Email</Text>
           <TextInput
             mode="outlined"
             placeholder="hmin44851@gmail.com"
+            onChangeText={setEmail}
             value={email}
             editable={false}
             keyboardType="email-address"
@@ -110,7 +110,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
             textColor="#666"
             outlineColor="#E0E0E0"
             activeOutlineColor="#E0E0E0"
-          /> */}
+          />
 
           <Text style={styles.label}>Phone Number</Text>
           <TextInput

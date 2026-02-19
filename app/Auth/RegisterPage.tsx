@@ -30,7 +30,7 @@ export default function RegisterPage() {
     console.log("Create account with:", username, email, phonenumber, password);
     setUserData({
       username: username,
-      email: "",
+      email: email,
       phonenumber: phonenumber,
       password: password,
     });
@@ -59,9 +59,9 @@ export default function RegisterPage() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
           <SafeAreaView style={{ flex: 1, marginTop: 2 }}>
-            <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 48 }}>
+            <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 20 }}>
               {/* Header */}
-              <View style={{ marginBottom: 40 }}>
+              <View style={{ marginBottom: 20 }}>
                 <Text style={{ fontSize: 36, fontWeight: "bold", textAlign: "center", color: "#111827" }}>
                   Create Account
                 </Text>
@@ -95,7 +95,7 @@ export default function RegisterPage() {
                   />
                 </View>
 
-                {/* Email Field
+                {/* Email Field */}
                 <View>
                   <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
                     Email
@@ -118,7 +118,7 @@ export default function RegisterPage() {
                     }}
                     placeholderTextColor="#9CA3AF"
                   />
-                </View> */}
+                </View>
 
                 {/* Phone Number Field */}
                 <View>
