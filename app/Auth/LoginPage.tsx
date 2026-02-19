@@ -14,7 +14,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleSignInButton from "../../components/Google";
-import FacebookSignInButton from "../../components/Facebook";
 import { useUser } from "../../src/contexts/UserContext";
 
 export default function LoginPage() {
@@ -182,7 +181,6 @@ export default function LoginPage() {
 
                 {/* Social Sign In Buttons */}
                 <GoogleSignInButton onPress={handleGoogleSignIn} />
-                <FacebookSignInButton onPress={handleFacebookSignIn} />
 
                 {/* Create Account Link */}
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 16, marginBottom: 24 }}>
