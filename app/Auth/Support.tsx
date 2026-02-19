@@ -78,6 +78,7 @@ const SupportScreen = ({ navigation }: Props) => {
           <View style={styles.chipsContainer}>
             <Chip
               selected={activeCategory === 'General'}
+              showSelectedCheck={false}
               onPress={() => setActiveCategory('General')}
               style={[
                 styles.chip,
@@ -93,6 +94,7 @@ const SupportScreen = ({ navigation }: Props) => {
             </Chip>
             <Chip
               selected={activeCategory === 'Account'}
+              showSelectedCheck={false}
               onPress={() => setActiveCategory('Account')}
               style={[
                 styles.chip,
@@ -108,6 +110,7 @@ const SupportScreen = ({ navigation }: Props) => {
             </Chip>
             <Chip
               selected={activeCategory === 'Services'}
+              showSelectedCheck={false}
               onPress={() => setActiveCategory('Services')}
               style={[
                 styles.chip,

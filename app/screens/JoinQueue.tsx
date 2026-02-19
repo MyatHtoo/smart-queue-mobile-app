@@ -79,41 +79,6 @@ export default function JoinQueue() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Tab Buttons */}
-        <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-          <Chip
-            selected={activeTab === "active"}
-            showSelectedCheck={false}
-            onPress={() => setActiveTab("active")}
-            mode="flat"
-            style={{
-              backgroundColor: activeTab === "active" ? "#17a2b8" : "#f5f5f5",
-            }}
-            textStyle={{
-              color: activeTab === "active" ? "white" : "#666",
-              fontSize: 14,
-              fontWeight: activeTab === "active" ? "600" : "400",
-            }}
-          >
-            Active
-          </Chip>
-          <Chip
-            selected={activeTab === "history"}
-            showSelectedCheck={false}
-            onPress={() => setActiveTab("history")}
-            mode="flat"
-            style={{
-              backgroundColor: activeTab === "history" ? "#17a2b8" : "#f5f5f5",
-            }}
-            textStyle={{
-              color: activeTab === "history" ? "white" : "#666",
-              fontSize: 14,
-              fontWeight: activeTab === "history" ? "600" : "400",
-            }}
-          >
-            History
-          </Chip>
-        </View>
 
         {/* Restaurant Info */}
         {restaurant && (

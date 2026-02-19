@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   header: {
-    backgroundColor: '#1A80A4',
+    backgroundColor: '#17a2b8',
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
   },
   updateButton: {
-    backgroundColor: '#1A80A4',
+    backgroundColor: '#17a2b8',
     borderRadius: 30,
     paddingVertical: 12,
     marginTop: 20,

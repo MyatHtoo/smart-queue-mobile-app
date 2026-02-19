@@ -1,7 +1,7 @@
 import { View, Image, Text, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import type { Restaurant } from "../src/constants/types";
+import type { Restaurant, RootNavigationProp } from "../src/constants/types";
 
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 
 export default function RestaurantsCard({ restaurant }: Props) {
   const { id, name, cuisine, distance, waitInfo, image } = restaurant;
-  const navigation = useNavigation();
+  const navigation = useNavigation<RootNavigationProp>();
 
   const handleJoinQueue = () => {
        navigation.navigate("Screens", { screen: "JoinQueue", params: { restaurant } });
