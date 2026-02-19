@@ -164,7 +164,7 @@ export default function LoginPage() {
                 <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
                   <TouchableOpacity onPress={() => setLoginWithPhone(!loginWithPhone)}>
-                    <Text style={{ marginHorizontal: 16, color: "#6B7280" }}>
+                    <Text style={{ marginHorizontal: 16, color: "#000000" }}>
                       {loginWithPhone ? "Login with Email" : "Login with Phone Number"}
                     </Text>
                   </TouchableOpacity>

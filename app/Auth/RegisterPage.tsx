@@ -25,16 +25,33 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [phonenumber, setPhonenumber] = useState("");
+  const [usePhone, setUsePhone] = useState(false);
+  const [errors, setErrors] = useState<{ username?: string; contact?: string; password?: string }>({});
 
   const handleCreateAccount = async () => {
-    console.log("Create account with:", username, email, phonenumber, password);
-    setUserData({
-      username: username,
-      email: email,
-      phonenumber: phonenumber,
-      password: password,
+    const newErrors: { username?: string; contact?: string; password?: string } = {};
+    if (!username.trim()) newErrors.username = "Username is required";
+    if (usePhone) {
+      if (!phonenumber.trim()) newErrors.contact = "Phone number is required";
+    } else {
+      if (!email.trim()) newErrors.contact = "Email is required";
+    }
+    if (!password.trim()) newErrors.password = "Password is required";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    setErrors({});
+    console.log("Create account with:", username, usePhone ? phonenumber : email, password);
+    (navigation.navigate as any)("OTP", {
+      type: usePhone ? "phone" : "email",
+      value: usePhone ? phonenumber : email,
+      username,
+      email: usePhone ? "" : email,
+      phonenumber: usePhone ? phonenumber : "",
+      password,
     });
-    (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
   };
 
   const handleGoogleSignIn = () => {
@@ -80,7 +97,7 @@ export default function RegisterPage() {
                   <TextInput
                     placeholder="Enter your username"
                     value={username}
-                    onChangeText={setUsername}
+                    onChangeText={(text) => { setUsername(text); if (errors.username) setErrors((e) => ({ ...e, username: undefined })); }}
                     style={{
                       backgroundColor: "#F5F5F5",
                       borderRadius: 12,
@@ -88,28 +105,39 @@ export default function RegisterPage() {
                       paddingVertical: 14,
                       fontSize: 16,
                       color: "#111827",
-                      borderColor: "#E5E7EB",
+                      borderColor: errors.username ? "#EF4444" : "#E5E7EB",
                       borderWidth: 1,
                     }}
                     placeholderTextColor="#9CA3AF"
                   />
+                  {errors.username && (
+                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.username}</Text>
+                  )}
                 </View>
 
-                {/* Email Field */}
+                {/* Email or Phone Number Field */}
                 <View>
                   <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-                    Email
+                    {usePhone ? "Phone Number" : "Email"}
                   </Text>
                   <TextInput
-                    placeholder="Enter your email"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
+                    placeholder={usePhone ? "Enter your phone number" : "Enter your email"}
+                    value={usePhone ? phonenumber : email}
+                    onChangeText={(text) => {
+                      if (usePhone) {
+                        setPhonenumber(text);
+                      } else {
+                        setEmail(text);
+                      }
+                      if (errors.contact) setErrors((e) => ({ ...e, contact: undefined }));
+                    }}
+                    keyboardType={usePhone ? "phone-pad" : "email-address"}
                     autoCapitalize="none"
+                    maxLength={usePhone ? 15 : undefined}
                     style={{
                       backgroundColor: "#F5F5F5",
                       borderRadius: 12,
-                      borderColor: "#E5E7EB",
+                      borderColor: errors.contact ? "#EF4444" : "#E5E7EB",
                       borderWidth: 1,
                       paddingHorizontal: 16,
                       paddingVertical: 14,
@@ -118,39 +146,9 @@ export default function RegisterPage() {
                     }}
                     placeholderTextColor="#9CA3AF"
                   />
-                </View>
-
-                {/* Phone Number Field */}
-                <View>
-                  <Text
-                    style={{
-                      marginBottom: 8,
-                      fontSize: 14,
-                      fontWeight: "500",
-                      color: "#111827",
-                    }}
-                  >
-                    Phone Number
-                  </Text>
-
-                  <TextInput
-                    placeholder="Enter your phone number"
-                    value={phonenumber}
-                    onChangeText={setPhonenumber}
-                    keyboardType="phone-pad"
-                    maxLength={15}
-                    style={{
-                      backgroundColor: "#F5F5F5",
-                      borderRadius: 12,
-                      borderColor: "#E5E7EB",
-                      borderWidth: 1,
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                      fontSize: 16,
-                      color: "#111827",
-                    }}
-                    placeholderTextColor="#9CA3AF"
-                  />
+                  {errors.contact && (
+                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.contact}</Text>
+                  )}
                 </View>
 
 
@@ -163,7 +161,7 @@ export default function RegisterPage() {
                     <TextInput
                       placeholder="At least 8 characters"
                       value={password}
-                      onChangeText={setPassword}
+                      onChangeText={(text) => { setPassword(text); if (errors.password) setErrors((e) => ({ ...e, password: undefined })); }}
                       secureTextEntry={!showPassword}
                       style={{
                         backgroundColor: "#F5F5F5",
@@ -172,7 +170,7 @@ export default function RegisterPage() {
                         paddingVertical: 14,
                         fontSize: 16,
                         color: "#111827",
-                        borderColor: "#E5E7EB",
+                        borderColor: errors.password ? "#EF4444" : "#E5E7EB",
                         borderWidth: 1,
                       }}
                       placeholderTextColor="#9CA3AF"
@@ -193,6 +191,20 @@ export default function RegisterPage() {
                       />
                     </TouchableOpacity>
                   </View>
+                  {errors.password && (
+                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.password}</Text>
+                  )}
+                </View>
+
+                {/* Toggle Register Mode */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
+                  <TouchableOpacity onPress={() => { setUsePhone(!usePhone); setErrors((e) => ({ ...e, contact: undefined })); }}>
+                    <Text style={{ marginHorizontal: 16, color: "#000000" }}>
+                      {usePhone ? "Use Email instead" : "Use Phone Number instead"}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
                 </View>
 
                 {/* Create Account Button */}

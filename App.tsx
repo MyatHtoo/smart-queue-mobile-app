@@ -12,6 +12,7 @@ import AccountView from "./app/Auth/AccountView";
 import EditProfile from "./app/Auth/EditProfile";
 import Settings from "./app/Auth/Settings";
 import Support from "./app/Auth/Support";
+import OTPScreen from "./app/Auth/OTP";
 import { UserProvider } from "./src/contexts/UserContext";
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Login" component={LoginPage} />
             <Stack.Screen name="Register" component={RegisterPage} />
+            <Stack.Screen name="OTP" component={OTPScreen} />
             <Stack.Screen name="MainTabs" component={BottomTabs} />
             <Stack.Screen name="Screens" component={StepStack} />
             <Stack.Screen name="Search" component={SearchScreen} />
