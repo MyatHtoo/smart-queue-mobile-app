@@ -10,9 +10,10 @@ type Props = {
 
 const EditProfileScreen = ({ navigation, route }: Props) => {
   const { userData, setUserData } = useUser();
-  
+
   const [username, setUsername] = useState(userData.username || 'Harry');
   const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
+  const [phonenumber, setPhonenumber] = useState(userData.phonenumber || '1234567890');
   const [password, setPassword] = useState(userData.password || '12345678');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdated, setIsUpdated] = useState(false);
@@ -30,24 +31,25 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     setUserData({
       username: username,
       email: email,
+      phonenumber: phonenumber,
       password: password,
     });
-    
+
     Alert.alert(
       'Success',
       'Profile updated successfully!',
-      [{ 
-        text: 'OK', 
+      [{
+        text: 'OK',
         onPress: () => {
           setIsUpdated(true);
-          navigation.navigate('AccountView', { username, email });
+          navigation.navigate('AccountView', { username, email, phonenumber });
         }
       }]
     );
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
@@ -97,7 +99,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
             activeOutlineColor="#1A80A4"
           />
 
-          <Text style={styles.label}>Email</Text>
+          {/* <Text style={styles.label}>Email</Text>
           <TextInput
             mode="outlined"
             placeholder="hmin44851@gmail.com"
@@ -108,6 +110,19 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
             textColor="#666"
             outlineColor="#E0E0E0"
             activeOutlineColor="#E0E0E0"
+          /> */}
+
+          <Text style={styles.label}>Phone Number</Text>
+          <TextInput
+            mode="outlined"
+            placeholder="Enter phone number"
+            value={phonenumber}
+            onChangeText={setPhonenumber}
+            keyboardType="phone-pad"
+            style={styles.input}
+            textColor="#000"
+            outlineColor="#E0E0E0"
+            activeOutlineColor="#1A80A4"
           />
 
           <Text style={styles.label}>Password</Text>

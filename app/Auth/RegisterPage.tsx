@@ -24,12 +24,14 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [phonenumber, setPhonenumber] = useState("");
 
   const handleCreateAccount = async () => {
-    console.log("Create account with:", username, email, password);
+    console.log("Create account with:", username, email, phonenumber, password);
     setUserData({
       username: username,
-      email: email,
+      email: "",
+      phonenumber: phonenumber,
       password: password,
     });
     (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
@@ -39,17 +41,7 @@ export default function RegisterPage() {
     console.log("Google sign in");
     setUserData({
       username: "Google User",
-      email: "user@gmail.com",
-      password: "",
-    });
-    (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
-  };
-
-  const handleFacebookSignIn = () => {
-    console.log("Facebook sign in");
-    setUserData({
-      username: "Facebook User",
-      email: "user@facebook.com",
+      email: "googleuser@gmail.com",
       password: "",
     });
     (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
@@ -103,7 +95,7 @@ export default function RegisterPage() {
                   />
                 </View>
 
-                {/* Email Field */}
+                {/* Email Field
                 <View>
                   <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
                     Email
@@ -126,7 +118,41 @@ export default function RegisterPage() {
                     }}
                     placeholderTextColor="#9CA3AF"
                   />
+                </View> */}
+
+                {/* Phone Number Field */}
+                <View>
+                  <Text
+                    style={{
+                      marginBottom: 8,
+                      fontSize: 14,
+                      fontWeight: "500",
+                      color: "#111827",
+                    }}
+                  >
+                    Phone Number
+                  </Text>
+
+                  <TextInput
+                    placeholder="Enter your phone number"
+                    value={phonenumber}
+                    onChangeText={setPhonenumber}
+                    keyboardType="phone-pad"
+                    maxLength={15}
+                    style={{
+                      backgroundColor: "#F5F5F5",
+                      borderRadius: 12,
+                      borderColor: "#E5E7EB",
+                      borderWidth: 1,
+                      paddingHorizontal: 16,
+                      paddingVertical: 14,
+                      fontSize: 16,
+                      color: "#111827",
+                    }}
+                    placeholderTextColor="#9CA3AF"
+                  />
                 </View>
+
 
                 {/* Password Field */}
                 <View>
