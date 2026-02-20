@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,15 @@ import {
   Platform,
   Alert,
   StyleSheet,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useUser } from "../../src/contexts/UserContext";
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useUser } from '../../src/contexts/UserContext';
+import {
+  registerCustomer,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+} from '../../src/services/api';
 
 type Props = {
   navigation: any;
@@ -20,14 +25,14 @@ type Props = {
 
 export default function OTPScreen({ navigation, route }: Props) {
   const { setUserData } = useUser();
-  const { type, value, username, email, phonenumber, password } = route.params;
-
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const { username, email, phoneNumber, password } = route.params;
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
-  // Countdown timer
+
   useEffect(() => {
     if (timer <= 0) {
       setCanResend(true);
@@ -40,75 +45,97 @@ export default function OTPScreen({ navigation, route }: Props) {
   }, [timer]);
 
   const handleOtpChange = (text: string, index: number) => {
-    // Only allow digits
-    const digit = text.replace(/[^0-9]/g, "");
+    const digit = text.replace(/[^0-9]/g, '');
     const newOtp = [...otp];
     newOtp[index] = digit;
     setOtp(newOtp);
 
-    // Auto-focus next input
     if (digit && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === "Backspace" && !otp[index] && index > 0) {
+    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
-      const newOtp = [...otp];
-      newOtp[index - 1] = "";
-      setOtp(newOtp);
     }
   };
 
-  const handleVerify = () => {
-    const code = otp.join("");
-    if (code.length < 6) {
-      Alert.alert("Error", "Please enter the complete 6-digit code.");
+  const handleVerify = async () => {
+    const code = otp.join('');
+
+    if (code.length !== 6) {
+      Alert.alert('Error', 'Please enter the 6-digit OTP');
       return;
     }
 
-    // Verification complete — create account
-    const successLabel = type === "email" ? "Email" : "Phone number";
-    Alert.alert("Success!", `${successLabel} verified. Account created!`, [
-      {
-        text: "OK",
-        onPress: () => {
-          setUserData({
-            username,
-            email,
-            phonenumber,
-            password,
-          });
-          navigation.navigate("MainTabs", { screen: "HomePage" });
+    try {
+      setLoading(true);
+      const verifyRes = await verifyPhoneOtp({
+        phoneNumber,
+        otp: code,
+      });
+
+      if (!verifyRes.data.verified) {
+        Alert.alert('Invalid OTP', verifyRes.data.message);
+        return;
+      }
+
+      await registerCustomer({
+        username,
+        email,
+        phoneNumber,
+        password,
+      });
+
+      setUserData({
+        username,
+        email,
+        phoneNumber,
+        password,
+      });
+
+      Alert.alert('Success', 'Account created successfully!', [
+        {
+          text: 'OK',
+          onPress: () =>
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'MainTabs' }],
+            }),
         },
-      },
-    ]);
+      ]);
+    } catch (error: any) {
+      Alert.alert(
+        'Verification Failed',
+        error.message || 'Something went wrong'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResend = () => {
-    setTimer(60);
-    setCanResend(false);
-    setOtp(["", "", "", "", "", ""]);
-    Alert.alert(
-      "Code Resent",
-      `A new verification code has been sent to your ${type === "email" ? "email" : "phone number"}.`
-    );
-  };
 
-  const maskedValue =
-    type === "email"
-      ? value.replace(/(.{2})(.*)(@)/, "$1***$3")
-      : value.replace(/(\d{3})\d+(\d{2})/, "$1****$2");
+  const handleResend = async () => {
+    try {
+      await sendPhoneOtp({ phoneNumber });
+      setTimer(60);
+      setCanResend(false);
+      setOtp(['', '', '', '', '', '']);
+      Alert.alert('OTP Sent', 'A new OTP has been sent');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to resend OTP');
+    }
+  };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1, backgroundColor: '#fff' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <SafeAreaView style={{ flex: 1 }}>
         <View style={styles.container}>
-          {/* Back button */}
+          {/* Back */}
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
@@ -119,25 +146,23 @@ export default function OTPScreen({ navigation, route }: Props) {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconCircle}>
-              <Ionicons
-                name={type === "email" ? "mail-outline" : "call-outline"}
-                size={32}
-                color="#17a2b8"
-              />
+              <Ionicons name="call-outline" size={32} color="#17a2b8" />
             </View>
-            <Text style={styles.title}>Verify Your {type === "email" ? "Email" : "Phone Number"}</Text>
+            <Text style={styles.title}>Verify Phone Number</Text>
             <Text style={styles.subtitle}>
-              We've sent a 6-digit verification code to
+              Enter the 6-digit code sent to
             </Text>
-            <Text style={styles.valueText}>{maskedValue}</Text>
+            <Text style={styles.phone}>{phoneNumber}</Text>
           </View>
 
-          {/* OTP Input */}
+          {/* OTP Inputs */}
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
-                ref={(ref) => { inputRefs.current[index] = ref; }}
+                ref={(ref) => {
+                  inputRefs.current[index] = ref;
+                }}
                 value={digit}
                 onChangeText={(text) => handleOtpChange(text, index)}
                 onKeyPress={(e) => handleKeyPress(e, index)}
@@ -145,14 +170,13 @@ export default function OTPScreen({ navigation, route }: Props) {
                 maxLength={1}
                 style={[
                   styles.otpInput,
-                  digit ? styles.otpInputFilled : null,
+                  digit && styles.otpInputFilled,
                 ]}
-                selectionColor="#17a2b8"
               />
             ))}
           </View>
 
-          {/* Timer & Resend */}
+          {/* Resend */}
           <View style={styles.resendContainer}>
             {canResend ? (
               <TouchableOpacity onPress={handleResend}>
@@ -160,8 +184,8 @@ export default function OTPScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             ) : (
               <Text style={styles.timerText}>
-                Resend code in{" "}
-                <Text style={{ fontWeight: "600", color: "#17a2b8" }}>
+                Resend in{' '}
+                <Text style={{ color: '#17a2b8', fontWeight: '600' }}>
                   {timer}s
                 </Text>
               </Text>
@@ -171,13 +195,14 @@ export default function OTPScreen({ navigation, route }: Props) {
           {/* Verify Button */}
           <TouchableOpacity
             onPress={handleVerify}
+            disabled={loading}
             style={[
               styles.verifyButton,
-              otp.join("").length < 6 && styles.verifyButtonDisabled,
+              loading && { opacity: 0.6 },
             ]}
           >
             <Text style={styles.verifyButtonText}>
-              Verify & Create Account
+              {loading ? 'Verifying...' : 'Verify & Create Account'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -185,6 +210,7 @@ export default function OTPScreen({ navigation, route }: Props) {
     </KeyboardAvoidingView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -196,77 +222,42 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 24,
   },
-  stepContainer: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  stepDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#D1D5DB",
-  },
-  stepDotActive: {
-    backgroundColor: "#17a2b8",
-  },
-  stepLine: {
-    width: 60,
-    height: 3,
-    backgroundColor: "#D1D5DB",
-    marginHorizontal: 8,
-  },
-  stepLineActive: {
-    backgroundColor: "#17a2b8",
-  },
-  stepLabel: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
   header: {
-    alignItems: "center",
+    alignItems: 'center',
     marginBottom: 36,
   },
   iconCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#E0F7FA",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#E0F7FA',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
   },
   title: {
     fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 8,
-    textAlign: "center",
   },
   subtitle: {
     fontSize: 15,
-    color: "#6B7280",
-    textAlign: "center",
+    color: '#6B7280',
   },
-  valueText: {
+  phone: {
     fontSize: 15,
-    fontWeight: "600",
-    color: "#111827",
+    fontWeight: '600',
     marginTop: 4,
   },
   otpContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
     gap: 10,
     marginBottom: 24,
   },
@@ -275,42 +266,38 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    textAlign: "center",
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    textAlign: 'center',
     fontSize: 22,
-    fontWeight: "700",
-    color: "#111827",
+    fontWeight: '700',
   },
   otpInputFilled: {
-    borderColor: "#17a2b8",
-    backgroundColor: "#F0FDFA",
+    borderColor: '#17a2b8',
+    backgroundColor: '#F0FDFA',
   },
   resendContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     marginBottom: 32,
-  },
-  timerText: {
-    fontSize: 14,
-    color: "#6B7280",
   },
   resendText: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#17a2b8",
+    fontWeight: '600',
+    color: '#17a2b8',
+  },
+  timerText: {
+    fontSize: 14,
+    color: '#6B7280',
   },
   verifyButton: {
-    backgroundColor: "#17a2b8",
+    backgroundColor: '#17a2b8',
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: "center",
-  },
-  verifyButtonDisabled: {
-    opacity: 0.5,
+    alignItems: 'center',
   },
   verifyButtonText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

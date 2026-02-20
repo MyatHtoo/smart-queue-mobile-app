@@ -12,7 +12,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   const { userData, setUserData } = useUser();
   const [username, setUsername] = useState(userData.username || 'Harry');
   const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
-  const [phonenumber, setPhonenumber] = useState(userData.phonenumber || '1234567890');
+  const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '1234567890');
   const [password, setPassword] = useState(userData.password || '12345678');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdated, setIsUpdated] = useState(false);
@@ -20,7 +20,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   useEffect(() => {
     setUsername(userData.username || 'Harry');
     setEmail(userData.email || 'hmin44851@gmail.com');
-    setPhonenumber(userData.phonenumber || '1234567890');
+    setPhoneNumber(userData.phoneNumber || '1234567890');
     setPassword(userData.password || '12345678');
   }, [userData]);
 
@@ -29,7 +29,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     setUserData({
       username: username,
       email: email,
-      phonenumber: phonenumber,
+      phoneNumber: phoneNumber,
       password: password,
 
     });
@@ -41,7 +41,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         text: 'OK',
         onPress: () => {
           setIsUpdated(true);
-          navigation.navigate('AccountView', { username, email, phonenumber });
+          navigation.navigate('AccountView', { username, email, phoneNumber });
         }
       }]
     );
@@ -116,8 +116,8 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           <TextInput
             mode="outlined"
             placeholder="Enter phone number"
-            value={phonenumber}
-            onChangeText={setPhonenumber}
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
             keyboardType="phone-pad"
             style={styles.input}
             textColor="#000"

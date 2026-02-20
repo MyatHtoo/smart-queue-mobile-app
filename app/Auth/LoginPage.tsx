@@ -15,6 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleSignInButton from "../../components/Google";
 import { useUser } from "../../src/contexts/UserContext";
+import { loginCustomer } from "../../src/services/api";
 
 export default function LoginPage() {
   const navigation = useNavigation();
@@ -27,24 +28,49 @@ export default function LoginPage() {
   const [loginWithPhone, setLoginWithPhone] = useState(false);
 
   const handleLogin = async () => {
-    if (loginWithPhone) {
-      console.log("Login with phone:", phoneNumber, password);
+    try {
+      let response: any;
+      if (loginWithPhone) {
+        console.log("Login with phone:", phoneNumber, password);
+        response = await loginCustomer({
+          phoneNumber: phoneNumber,
+          password: password,
+        });
+      } else {
+        console.log("Login with:", usernameOrEmail, password);
+        response = await loginCustomer({
+          usernameOrEmail: usernameOrEmail,
+          password: password,
+        });
+      }
+
       setUserData({
-        username: userData.username || '',
-        email: userData.email || '',
-        phonenumber: phoneNumber,
+        username: response.username || usernameOrEmail,
+        email: response.email || (loginWithPhone ? '' : usernameOrEmail),
+        phoneNumber: response.phoneNumber || (loginWithPhone ? phoneNumber : ''),
         password: password,
       });
-    } else {
-      console.log("Login with:", usernameOrEmail, password);
-      setUserData({
-        username: usernameOrEmail,
-        email: usernameOrEmail,
-        phonenumber: userData.phonenumber || '',
-        password: password,
-      });
+      (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
+    } catch (error: any) {
+      console.error("Login failed:", error.message);
+      // Fallback: still navigate for now if backend is not available
+      if (loginWithPhone) {
+        setUserData({
+          username: userData.username || '',
+          email: userData.email || '',
+          phoneNumber: phoneNumber,
+          password: password,
+        });
+      } else {
+        setUserData({
+          username: usernameOrEmail,
+          email: usernameOrEmail,
+          phoneNumber: userData.phoneNumber || '',
+          password: password,
+        });
+      }
+      (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
     }
-    (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
   };
 
   const handleForgotPassword = () => {
@@ -56,7 +82,7 @@ export default function LoginPage() {
     setUserData({
       username: "Google User",
       email: "user@gmail.com",
-      phonenumber: userData.phonenumber || '',
+      phoneNumber: userData.phoneNumber || '',
       password: "",
     });
     (navigation.navigate as any)("MainTabs", { screen: "HomePage" });

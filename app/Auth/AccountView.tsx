@@ -26,7 +26,7 @@ const AccountView = ({ navigation, route }: Props) => {
     setUserData({
       username: username,
       email: email,
-      phonenumber: userData.phonenumber,
+      phoneNumber: userData.phoneNumber,
       password: userData.password,
     });
     }

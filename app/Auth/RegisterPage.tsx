@@ -9,12 +9,14 @@ import {
   TouchableWithoutFeedback,
   Platform,
   TextInput,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleSignInButton from "../../components/Google";
 import { useUser } from "../../src/contexts/UserContext";
+import { sendPhoneOtp } from "../../src/services/api";
 
 export default function RegisterPage() {
   const navigation = useNavigation();
@@ -24,7 +26,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [phonenumber, setPhonenumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [usePhone, setUsePhone] = useState(false);
   const [errors, setErrors] = useState<{ username?: string; contact?: string; password?: string }>({});
 
@@ -32,7 +34,7 @@ export default function RegisterPage() {
     const newErrors: { username?: string; contact?: string; password?: string } = {};
     if (!username.trim()) newErrors.username = "Username is required";
     if (usePhone) {
-      if (!phonenumber.trim()) newErrors.contact = "Phone number is required";
+      if (!phoneNumber.trim()) newErrors.contact = "Phone number is required";
     } else {
       if (!email.trim()) newErrors.contact = "Email is required";
     }
@@ -43,15 +45,25 @@ export default function RegisterPage() {
       return;
     }
     setErrors({});
-    console.log("Create account with:", username, usePhone ? phonenumber : email, password);
-    (navigation.navigate as any)("OTP", {
-      type: usePhone ? "phone" : "email",
-      value: usePhone ? phonenumber : email,
-      username,
-      email: usePhone ? "" : email,
-      phonenumber: usePhone ? phonenumber : "",
-      password,
-    });
+    console.log("Create account with:", username, usePhone ? phoneNumber : email, password);
+
+    try {
+      // Send OTP to phone number (trim input to normalize)
+      const valueToSend = usePhone ? phoneNumber.trim() : email.trim();
+      console.log("Sending OTP request to:", valueToSend);
+      const otpResponse = await sendPhoneOtp({ phoneNumber: valueToSend });
+      (navigation.navigate as any)("OTP", {
+        type: usePhone ? "phone" : "email",
+        value: valueToSend,
+        username,
+        email: usePhone ? "" : email,
+        phoneNumber: usePhone ? valueToSend : "",
+        password,
+      });
+    } catch (error: any) {
+      console.error("Failed to send OTP:", error.message);
+      Alert.alert("Error", error.message || "Failed to send OTP. Please try again.");
+    }
   };
 
   const handleGoogleSignIn = () => {
@@ -122,10 +134,10 @@ export default function RegisterPage() {
                   </Text>
                   <TextInput
                     placeholder={usePhone ? "Enter your phone number" : "Enter your email"}
-                    value={usePhone ? phonenumber : email}
+                    value={usePhone ? phoneNumber : email}
                     onChangeText={(text) => {
                       if (usePhone) {
-                        setPhonenumber(text);
+                        setPhoneNumber(text);
                       } else {
                         setEmail(text);
                       }
