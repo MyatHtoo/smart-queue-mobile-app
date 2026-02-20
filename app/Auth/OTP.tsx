@@ -69,9 +69,6 @@ export default function OTPScreen({ navigation, route }: Props) {
       Alert.alert('Error', 'Please enter the 6-digit OTP');
       return;
     }
-    console.log(code)
-    console.log('work')
-
     try {
       setLoading(true);
       const verifyRes = await verifyPhoneOtp({
