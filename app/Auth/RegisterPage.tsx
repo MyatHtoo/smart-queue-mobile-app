@@ -22,17 +22,17 @@ export default function RegisterPage() {
   const navigation = useNavigation();
   const { setUserData } = useUser();
 
-  const [username, setUsername] = useState("");
+  const [name, setname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [usePhone, setUsePhone] = useState(false);
-  const [errors, setErrors] = useState<{ username?: string; contact?: string; password?: string }>({});
+  const [usePhone, setUsePhone] = useState(true);
+  const [errors, setErrors] = useState<{ name?: string; contact?: string; password?: string }>({});
 
   const handleCreateAccount = async () => {
-    const newErrors: { username?: string; contact?: string; password?: string } = {};
-    if (!username.trim()) newErrors.username = "Username is required";
+    const newErrors: { name?: string; contact?: string; password?: string } = {};
+    if (!name.trim()) newErrors.name = "name is required";
     if (usePhone) {
       if (!phoneNumber.trim()) newErrors.contact = "Phone number is required";
     } else {
@@ -45,17 +45,20 @@ export default function RegisterPage() {
       return;
     }
     setErrors({});
-    console.log("Create account with:", username, usePhone ? phoneNumber : email, password);
+    console.log("Create account with:", name, usePhone ? phoneNumber : email, password);
 
     try {
       // Send OTP to phone number (trim input to normalize)
       const valueToSend = usePhone ? phoneNumber.trim() : email.trim();
+      console.log(usePhone)
+      console.log(valueToSend);
       console.log("Sending OTP request to:", valueToSend);
       const otpResponse = await sendPhoneOtp({ phoneNumber: valueToSend });
+      console.log(otpResponse);
       (navigation.navigate as any)("OTP", {
         type: usePhone ? "phone" : "email",
         value: valueToSend,
-        username,
+        name,
         email: usePhone ? "" : email,
         phoneNumber: usePhone ? valueToSend : "",
         password,
@@ -69,7 +72,7 @@ export default function RegisterPage() {
   const handleGoogleSignIn = () => {
     console.log("Google sign in");
     setUserData({
-      username: "Google User",
+      name: "Google User",
       email: "googleuser@gmail.com",
       password: "",
     });
@@ -101,15 +104,15 @@ export default function RegisterPage() {
 
               {/* Form */}
               <View style={{ gap: 20 }}>
-                {/* Username Field */}
+                {/* name Field */}
                 <View>
                   <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-                    Username
+                    name
                   </Text>
                   <TextInput
-                    placeholder="Enter your username"
-                    value={username}
-                    onChangeText={(text) => { setUsername(text); if (errors.username) setErrors((e) => ({ ...e, username: undefined })); }}
+                    placeholder="Enter your name"
+                    value={name}
+                    onChangeText={(text) => { setname(text); if (errors.name) setErrors((e) => ({ ...e, name: undefined })); }}
                     style={{
                       backgroundColor: "#F5F5F5",
                       borderRadius: 12,
@@ -117,13 +120,13 @@ export default function RegisterPage() {
                       paddingVertical: 14,
                       fontSize: 16,
                       color: "#111827",
-                      borderColor: errors.username ? "#EF4444" : "#E5E7EB",
+                      borderColor: errors.name ? "#EF4444" : "#E5E7EB",
                       borderWidth: 1,
                     }}
                     placeholderTextColor="#9CA3AF"
                   />
-                  {errors.username && (
-                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.username}</Text>
+                  {errors.name && (
+                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.name}</Text>
                   )}
                 </View>
 
@@ -211,7 +214,7 @@ export default function RegisterPage() {
                 {/* Toggle Register Mode */}
                 <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
-                  <TouchableOpacity onPress={() => { setUsePhone(!usePhone); setErrors((e) => ({ ...e, contact: undefined })); }}>
+                  <TouchableOpacity onPress={() => { setUsePhone(usePhone); setErrors((e) => ({ ...e, contact: undefined })); }}>
                     <Text style={{ marginHorizontal: 16, color: "#000000" }}>
                       {usePhone ? "Use Email instead" : "Use Phone Number instead"}
                     </Text>

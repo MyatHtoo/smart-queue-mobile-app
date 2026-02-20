@@ -25,7 +25,8 @@ type Props = {
 
 export default function OTPScreen({ navigation, route }: Props) {
   const { setUserData } = useUser();
-  const { username, email, phoneNumber, password } = route.params;
+  const { name, email, phoneNumber, password } = route.params;
+  // console.log('ph',phoneNumber,name,email,password)
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
@@ -68,6 +69,8 @@ export default function OTPScreen({ navigation, route }: Props) {
       Alert.alert('Error', 'Please enter the 6-digit OTP');
       return;
     }
+    console.log(code)
+    console.log('work')
 
     try {
       setLoading(true);
@@ -82,14 +85,14 @@ export default function OTPScreen({ navigation, route }: Props) {
       }
 
       await registerCustomer({
-        username,
+        name,
         email,
         phoneNumber,
         password,
       });
 
       setUserData({
-        username,
+        name,
         email,
         phoneNumber,
         password,
@@ -118,7 +121,8 @@ export default function OTPScreen({ navigation, route }: Props) {
 
   const handleResend = async () => {
     try {
-      await sendPhoneOtp({ phoneNumber });
+      const otp = await sendPhoneOtp({ phoneNumber });
+      console.log(otp);
       setTimer(60);
       setCanResend(false);
       setOtp(['', '', '', '', '', '']);

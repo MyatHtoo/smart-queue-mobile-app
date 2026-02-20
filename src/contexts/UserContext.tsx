@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 
 type UserData = {
-  username: string;
+  name: string;
   email: string;
   password: string;
   phoneNumber?: string; 
@@ -16,7 +16,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [userData, setUserData] = useState<UserData>({
-    username: '',
+    name: '',
     email: '',
     password: '',
     phoneNumber: '',
