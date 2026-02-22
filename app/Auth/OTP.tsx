@@ -16,6 +16,8 @@ import {
   registerCustomer,
   sendPhoneOtp,
   verifyPhoneOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
 } from '../../src/services/api';
 
 type Props = {
@@ -25,7 +27,8 @@ type Props = {
 
 export default function OTPScreen({ navigation, route }: Props) {
   const { setUserData } = useUser();
-  const { name, email, phoneNumber, password } = route.params;
+  const { name, email, phoneNumber, password, type, value } = route.params;
+  const isPhone = type === 'phone';
   // console.log('ph',phoneNumber,name,email,password)
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
@@ -71,10 +74,18 @@ export default function OTPScreen({ navigation, route }: Props) {
     }
     try {
       setLoading(true);
-      const verifyRes = await verifyPhoneOtp({
-        phoneNumber,
-        otp: code,
-      });
+      let verifyRes: any;
+      if (isPhone) {
+        verifyRes = await verifyPhoneOtp({
+          phoneNumber: phoneNumber || value,
+          otp: code,
+        });
+      } else {
+        verifyRes = await verifyEmailOtp({
+          email: email || value,
+          otp: code,
+        });
+      }
 
       if (!verifyRes.data.verified) {
         Alert.alert('Invalid OTP', verifyRes.data.message);
@@ -83,15 +94,15 @@ export default function OTPScreen({ navigation, route }: Props) {
 
       await registerCustomer({
         name,
-        email,
-        phoneNumber,
+        email: isPhone ? email : (email || value),
+        phoneNumber: isPhone ? (phoneNumber || value) : (phoneNumber || ''),
         password,
       });
 
       setUserData({
         name,
-        email,
-        phoneNumber,
+        email: isPhone ? email : (email || value),
+        phoneNumber: isPhone ? (phoneNumber || value) : (phoneNumber || ''),
         password,
       });
 
@@ -118,8 +129,13 @@ export default function OTPScreen({ navigation, route }: Props) {
 
   const handleResend = async () => {
     try {
-      const otp = await sendPhoneOtp({ phoneNumber });
-      console.log(otp);
+      let resp: any;
+      if (isPhone) {
+        resp = await sendPhoneOtp({ phoneNumber: phoneNumber || value });
+      } else {
+        resp = await sendEmailOtp({ email: email || value });
+      }
+      console.log(resp);
       setTimer(60);
       setCanResend(false);
       setOtp(['', '', '', '', '', '']);
@@ -147,13 +163,13 @@ export default function OTPScreen({ navigation, route }: Props) {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconCircle}>
-              <Ionicons name="call-outline" size={32} color="#17a2b8" />
+              <Ionicons name={isPhone ? 'call-outline' : 'mail-outline'} size={32} color="#17a2b8" />
             </View>
-            <Text style={styles.title}>Verify Phone Number</Text>
+            <Text style={styles.title}>{isPhone ? 'Verify Phone Number' : 'Verify Email'}</Text>
             <Text style={styles.subtitle}>
               Enter the 6-digit code sent to
             </Text>
-            <Text style={styles.phone}>{phoneNumber}</Text>
+            <Text style={styles.phone}>{value ?? (isPhone ? phoneNumber : email)}</Text>
           </View>
 
           {/* OTP Inputs */}

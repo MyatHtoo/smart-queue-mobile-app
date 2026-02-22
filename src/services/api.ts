@@ -112,7 +112,6 @@ export const sendPhoneOtp = (data: { phoneNumber: string }) => {
 };
 
 
-
 export type VerifyPhoneOtpPayload = {
   phoneNumber: string;
   otp: string;
@@ -130,6 +129,36 @@ export const verifyPhoneOtp = (data: VerifyPhoneOtpPayload) => {
   });
 };
 
+export type SendEmailOtpResponse = {
+  data: {
+    success: boolean;
+    message: string;
+  };
+};
+
+export const sendEmailOtp = (data: { email: string }) => {
+  return request<SendEmailOtpResponse>('/customers/send-email-otp', {
+    method: 'POST',
+    body: data,
+  });
+};
+
+export type VerifyEmailOtpPayload = {
+  email: string;
+  otp: string;
+};
+
+export const verifyEmailOtp = (data: VerifyEmailOtpPayload) => {
+  return request<{
+    data: {
+      verified: boolean;
+      message: string;
+    };
+  }>('/customers/verify-email-otp', {
+    method: 'POST',
+    body: data,
+  });
+};
 
 
 export default {
@@ -137,4 +166,6 @@ export default {
   loginCustomer,
   sendPhoneOtp,
   verifyPhoneOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
 };
