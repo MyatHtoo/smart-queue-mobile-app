@@ -15,7 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleSignInButton from "../../components/Google";
 import { useUser } from "../../src/contexts/UserContext";
-import { loginCustomer } from "../../src/services/api";
+import { loginCustomer, setAuthToken } from "../../src/services/api";
 
 export default function LoginPage() {
   const navigation = useNavigation();
@@ -81,7 +81,12 @@ export default function LoginPage() {
         email: user.email || (isPhone ? "" : payload.email),
         phoneNumber: user.phoneNumber || (isPhone ? payload.phoneNumber : user.phoneNumber || ""),
         password: payload.password,
+        token: token || user.token || '',
+        id: user._id || user.id || user._doc?._id || '',
       });
+
+      // set api auth token for subsequent requests
+      if (token) setAuthToken(token);
 
       return true;
     } catch (error: any) {

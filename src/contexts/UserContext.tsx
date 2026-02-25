@@ -4,7 +4,9 @@ type UserData = {
   name: string;
   email: string;
   password: string;
-  phoneNumber?: string; 
+  phoneNumber?: string;
+  token?: string;
+  id?: string;
 };
 
 type UserContextType = {
@@ -20,6 +22,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     email: '',
     password: '',
     phoneNumber: '',
+    token: '',
+    id: '',
   });
 
   return (

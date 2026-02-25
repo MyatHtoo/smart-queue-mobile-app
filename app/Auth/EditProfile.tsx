@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
 import { useUser } from '../../src/contexts/UserContext';
+import { changeUsername } from '../../src/services/api';
 
 type Props = {
   navigation: any;
@@ -25,26 +26,59 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   }, [userData]);
 
 
-  const handleUpdate = () => {
-    setUserData({
-      name: username,
-      email: userData.email ? email : userData.email,
-      phoneNumber: userData.phoneNumber ? phoneNumber : userData.phoneNumber,
-      password: password,
-
-    });
-
-    Alert.alert(
-      'Success',
-      'Profile updated successfully!',
-      [{
-        text: 'OK',
-        onPress: () => {
-          setIsUpdated(true);
-          navigation.navigate('AccountView', { username, email, phoneNumber });
+  const handleUpdate = async () => {
+    try {
+      // If username changed and backend supports changing username, call API
+      let respMessage = '';
+      if (username && username !== userData.name) {
+        const payload: any = { username };
+        if (userData.email) payload.email = userData.email;
+        if (userData.phoneNumber) payload.phoneNumber = userData.phoneNumber;
+        if (userData.id) {
+          payload.id = userData.id;
+          // also include backend-specific keys if required
+          payload.customer_id = userData.id;
         }
-      }]
-    );
+        // include alternative key name used by backend
+        payload.newUsername = username;
+
+        console.log('Change username payload:', payload);
+        const resp: any = await changeUsername(payload);
+        console.log('Change username response:', resp);
+        const success = resp?.data?.success ?? false;
+        const message = resp?.data?.message ?? resp?.message ?? '';
+        respMessage = message;
+
+        // consider it success if backend indicates success or the message contains 'success'
+        const isSuccess = success || /success/i.test(String(message));
+        if (!isSuccess) {
+          Alert.alert('Error', message || 'Failed to update username');
+          return;
+        }
+      }
+
+      // Update local context regardless
+      setUserData({
+        name: username,
+        email: userData.email ? email : userData.email,
+        phoneNumber: userData.phoneNumber ? phoneNumber : userData.phoneNumber,
+        password: password,
+      });
+
+      const successMessage = respMessage || 'Profile updated successfully!';
+      Alert.alert('Success', successMessage, [
+        {
+          text: 'OK',
+          onPress: () => {
+            setIsUpdated(true);
+            navigation.navigate('AccountView', { username, email, phoneNumber });
+          },
+        },
+      ]);
+    } catch (err: any) {
+      console.error('Change username error:', err);
+      Alert.alert('Error', err?.message || 'Failed to update profile');
+    }
   };
 
   return (

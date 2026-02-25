@@ -3,6 +3,12 @@
 const BASE_URL = 'https://smart-q-backend-nestjs.onrender.com';
 const API_URL = `${BASE_URL}/api`;
 
+let authToken: string | null = null;
+
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+};
+
 type RequestOptions = {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: any;
@@ -18,11 +24,18 @@ async function request<T>(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000); 
 
+  const defaultHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (authToken) {
+    defaultHeaders['Authorization'] = `Bearer ${authToken}`;
+  }
+
   const config: RequestInit = {
     method,
     signal: controller.signal,
     headers: {
-      'Content-Type': 'application/json',
+      ...defaultHeaders,
       ...headers,
     },
   };
@@ -158,6 +171,49 @@ export const verifyEmailOtp = (data: VerifyEmailOtpPayload) => {
     method: 'POST',
     body: data,
   });
+};
+
+export type ChangeUsernamePayload = {
+  username: string;
+  email?: string;
+  phoneNumber?: string;
+  id?: string;
+};
+
+export const changeUsername = async (data: ChangeUsernamePayload) => {
+  // Try POST first (common), but some backends may expect PATCH/PUT.
+  try {
+    return await request<{
+      data: {
+        success: boolean;
+        message: string;
+        customer?: any;
+      };
+    }>('/customers/change-username', {
+      method: 'POST',
+      body: data,
+    });
+  } catch (err: any) {
+    const msg = String(err?.message || err || '');
+    if (/cannot post/i.test(msg) || /not found/i.test(msg) || /cannot (post|put|patch)/i.test(msg)) {
+      try {
+        return await request<{
+          data: {
+            success: boolean;
+            message: string;
+            customer?: any;
+          };
+        }>('/customers/change-username', {
+          method: 'PATCH',
+          body: data,
+        });
+      } catch (err2: any) {
+        throw err2;
+      }
+    }
+
+    throw err;
+  }
 };
 
 
