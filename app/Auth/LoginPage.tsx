@@ -21,56 +21,97 @@ export default function LoginPage() {
   const navigation = useNavigation();
   const { userData, setUserData } = useUser();
 
-  const [usernameOrEmail, setUsernameOrEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginWithPhone, setLoginWithPhone] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [lastPayload, setLastPayload] = useState<any>(null);
+  const [lastResponse, setLastResponse] = useState<any>(null);
 
-  const handleLogin = async () => {
+  // shared login routine
+  const doLogin = async (payload: any, isPhone: boolean) => {
     try {
-      let response: any;
-      if (loginWithPhone) {
-        console.log("Login with phone:", phoneNumber, password);
-        response = await loginCustomer({
-          phoneNumber: phoneNumber,
-          password: password,
-        });
-      } else {
-        console.log("Login with:", usernameOrEmail, password);
-        response = await loginCustomer({
-          usernameOrEmail: usernameOrEmail,
-          password: password,
-        });
+      setErrorMessage("");
+      let finalPayload = { ...payload };
+      if (payload.usernameOrEmail || payload.email) {
+        const v = (payload.usernameOrEmail ?? payload.email ?? "").trim();
+        finalPayload = { email: v, password: payload.password };
+      }
+
+      setLastPayload(finalPayload);
+      console.log("Login payload (sent):", finalPayload);
+
+      const response: any = await loginCustomer(finalPayload);
+      console.log("Login response:", response);
+      setLastResponse(response);
+
+      const token = response?.data?.accessToken ?? response?.data?.token ?? response?.accessToken ?? response?.token;
+      const user = response?.data?.user ?? response?.data?.customer ?? (response?.data && typeof response.data !== 'object' ? undefined : response?.data) ?? response?.user ?? response;
+
+      const respMessage = response?.message ?? response?.data?.message;
+      if (respMessage && !token) {
+        const rawMsg = Array.isArray(respMessage) ? respMessage.join(', ') : respMessage.toString();
+        const formatMessage = (raw: string) => {
+          let s = raw;
+          if (!isPhone) {
+            s = s.replace(/phone number|phone/gi, 'username/email');
+          } else {
+            s = s.replace(/username\/email|username|email/gi, 'phone number');
+          }
+          return s;
+        };
+        setErrorMessage(formatMessage(rawMsg));
+        setLastResponse(response);
+        return false;
+      }
+
+      if (!token || !user) {
+        const message = isPhone
+          ? "Incorrect phone number or password."
+          : "Incorrect username/email or password.";
+        setErrorMessage(message);
+        setLastResponse(response);
+        return false;
       }
 
       setUserData({
-        username: response.username || usernameOrEmail,
-        email: response.email || (loginWithPhone ? '' : usernameOrEmail),
-        phoneNumber: response.phoneNumber || (loginWithPhone ? phoneNumber : ''),
-        password: password,
+        name: user.username || user.name || (isPhone ? user.phoneNumber : user.email) || "",
+        email: user.email || (isPhone ? "" : payload.email),
+        phoneNumber: user.phoneNumber || (isPhone ? payload.phoneNumber : user.phoneNumber || ""),
+        password: payload.password,
       });
-      (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
+
+      return true;
     } catch (error: any) {
-      console.error("Login failed:", error.message);
-      // Fallback: still navigate for now if backend is not available
-      if (loginWithPhone) {
-        setUserData({
-          username: userData.username || '',
-          email: userData.email || '',
-          phoneNumber: phoneNumber,
-          password: password,
-        });
-      } else {
-        setUserData({
-          username: usernameOrEmail,
-          email: usernameOrEmail,
-          phoneNumber: userData.phoneNumber || '',
-          password: password,
-        });
-      }
-      (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
+      console.error("Login failed:", error);
+      const rawErr = error?.message ?? (typeof error === 'string' ? error : JSON.stringify(error));
+      const formatMessage = (raw: string) => {
+        let s = raw;
+        if (!isPhone) {
+          s = s.replace(/phone number|phone/gi, 'username/email');
+        } else {
+          s = s.replace(/username\/email|username|email/gi, 'phone number');
+        }
+        return s;
+      };
+      setErrorMessage(formatMessage(rawErr) || "Login failed. Please try again.");
+      setLastResponse(error);
+      return false;
     }
+  };
+
+  const handleLoginWithEmail = async () => {
+    const payload = { email: email?.trim(), password };
+    const ok = await doLogin(payload, false);
+    if (ok) (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
+  };
+
+  const handleLoginWithPhone = async () => {
+    const payload = { phoneNumber: phoneNumber?.trim(), password };
+    const ok = await doLogin(payload, true);
+    if (ok) (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
   };
 
   const handleForgotPassword = () => {
@@ -80,7 +121,7 @@ export default function LoginPage() {
   const handleGoogleSignIn = () => {
     console.log("Google sign in");
     setUserData({
-      username: "Google User",
+      name: "Google User",
       email: "user@gmail.com",
       phoneNumber: userData.phoneNumber || '',
       password: "",
@@ -113,16 +154,17 @@ export default function LoginPage() {
 
               {/* Form */}
               <View style={{ gap: 20 }}>
-                {/* Username/Email or Phone Number Field */}
+                {/* Email or Phone Number Field */}
                 <View>
                   <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-                    {loginWithPhone ? "Phone Number" : "Username or Email"}
+                    {loginWithPhone ? "Phone Number" : "Email"}
                   </Text>
                   <TextInput
-                    placeholder={loginWithPhone ? "Enter your phone number" : "Enter your username or email"}
-                    value={loginWithPhone ? phoneNumber : usernameOrEmail}
-                    onChangeText={loginWithPhone ? setPhoneNumber : setUsernameOrEmail}
-                    keyboardType={loginWithPhone ? "phone-pad" : "default"}
+                    placeholder={loginWithPhone ? "Enter your phone number" : "Enter your email"}
+                    value={loginWithPhone ? phoneNumber : email}
+                    onChangeText={loginWithPhone ? setPhoneNumber : setEmail}
+                    keyboardType={loginWithPhone ? "phone-pad" : "email-address"}
+                    autoCapitalize={loginWithPhone ? "none" : "none"}
                     style={{
                       backgroundColor: "#F5F5F5",
                       borderRadius: 12,
@@ -197,10 +239,16 @@ export default function LoginPage() {
                   <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
                 </View>
 
+                {errorMessage ? (
+                  <Text style={{ color: "#DC2626", textAlign: "center", marginBottom: 8 }}>
+                    {errorMessage}
+                  </Text>
+                ) : null}
+
                 {/* Login Button */}
                 <View style={{ marginTop: 16 }}>
                   <TouchableOpacity
-                    onPress={handleLogin}
+                    onPress={loginWithPhone ? handleLoginWithPhone : handleLoginWithEmail}
                     style={{
                       backgroundColor: "#17a2b8",
                       borderRadius: 12,
