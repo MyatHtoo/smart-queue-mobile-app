@@ -10,26 +10,26 @@ type Props = {
 
 const EditProfileScreen = ({ navigation, route }: Props) => {
   const { userData, setUserData } = useUser();
-  const [username, setUsername] = useState(userData.username || 'Harry');
-  const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
-  const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '1234567890');
-  const [password, setPassword] = useState(userData.password || '12345678');
+  const [username, setUsername] = useState(userData.name || '');
+  const [email, setEmail] = useState(userData.email || '');
+  const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '');
+  const [password, setPassword] = useState(userData.password || '');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdated, setIsUpdated] = useState(false);
 
   useEffect(() => {
-    setUsername(userData.username || 'Harry');
-    setEmail(userData.email || 'hmin44851@gmail.com');
-    setPhoneNumber(userData.phoneNumber || '1234567890');
-    setPassword(userData.password || '12345678');
+    setUsername(userData.name || '');
+    setEmail(userData.email || '');
+    setPhoneNumber(userData.phoneNumber || '');
+    setPassword(userData.password || '');
   }, [userData]);
 
 
   const handleUpdate = () => {
     setUserData({
-      username: username,
-      email: email,
-      phoneNumber: phoneNumber,
+      name: username,
+      email: userData.email ? email : userData.email,
+      phoneNumber: userData.phoneNumber ? phoneNumber : userData.phoneNumber,
       password: password,
 
     });
@@ -98,32 +98,40 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
             activeOutlineColor="#1A80A4"
           />
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            mode="outlined"
-            placeholder="hmin44851@gmail.com"
-            onChangeText={setEmail}
-            value={email}
-            editable={false}
-            keyboardType="email-address"
-            style={[styles.input, styles.disabledInput]}
-            textColor="#666"
-            outlineColor="#E0E0E0"
-            activeOutlineColor="#E0E0E0"
-          />
+          {userData.email ? (
+            <>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="Enter your email"
+                onChangeText={setEmail}
+                value={email}
+                editable={false}
+                keyboardType="email-address"
+                style={[styles.input, styles.disabledInput]}
+                textColor="#666"
+                outlineColor="#E0E0E0"
+                activeOutlineColor="#E0E0E0"
+              />
+            </>
+          ) : null}
 
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput
-            mode="outlined"
-            placeholder="Enter phone number"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-            style={styles.input}
-            textColor="#000"
-            outlineColor="#E0E0E0"
-            activeOutlineColor="#1A80A4"
-          />
+          {userData.phoneNumber ? (
+            <>
+              <Text style={styles.label}>Phone Number</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="Enter phone number"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                style={styles.input}
+                textColor="#000"
+                outlineColor="#E0E0E0"
+                activeOutlineColor="#1A80A4"
+              />
+            </>
+          ) : null}
 
           <Text style={styles.label}>Password</Text>
           <TextInput

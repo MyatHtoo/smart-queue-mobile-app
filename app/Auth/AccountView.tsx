@@ -10,21 +10,21 @@ type Props = {
 
 const AccountView = ({ navigation, route }: Props) => {
   const { userData, setUserData } = useUser();
-    const [username, setUsername] = useState(userData.username || 'Harry');
-    const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
+    const [username, setUsername] = useState(userData.name || '');
+    const [email, setEmail] = useState(userData.email || '');
+    const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '');
 
   useEffect(() => {
-    if (userData.username) {
-      setUsername(userData.username);
+    if (userData.name) {
+      setUsername(userData.name);
     }
-    if (userData.email) {
-      setEmail(userData.email);
-    }
+    setEmail(userData.email || '');
+    setPhoneNumber(userData.phoneNumber || '');
   },[userData]);
 
     const handleUpdate = () => {
     setUserData({
-      username: username,
+      name: username,
       email: email,
       phoneNumber: userData.phoneNumber,
       password: userData.password,
@@ -39,7 +39,7 @@ const AccountView = ({ navigation, route }: Props) => {
 
   // When "Edit Profile" is pressed - go to edit screen
   const handleEditProfile = () => {
-    navigation.navigate('EditProfile', { username, email });
+    navigation.navigate('EditProfile', { username, email, phoneNumber });
   };
 
   // When "History" is pressed
@@ -93,7 +93,7 @@ const AccountView = ({ navigation, route }: Props) => {
           />
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{username}</Text>
-            <Text style={styles.email}>{email}</Text>
+            <Text style={styles.email}>{userData.email ? userData.email : userData.phoneNumber}</Text>
           </View>
         </View>
 
