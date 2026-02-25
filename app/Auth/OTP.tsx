@@ -18,7 +18,9 @@ import {
   verifyPhoneOtp,
   sendEmailOtp,
   verifyEmailOtp,
+  setAuthToken,
 } from '../../src/services/api';
+
 
 type Props = {
   navigation: any;
@@ -26,7 +28,7 @@ type Props = {
 };
 
 export default function OTPScreen({ navigation, route }: Props) {
-  const { setUserData } = useUser();
+  const { setUserData, setToken } = useUser();
   const { name, email, phoneNumber, password, type, value } = route.params;
   const isPhone = type === 'phone';
   // console.log('ph',phoneNumber,name,email,password)
@@ -92,18 +94,29 @@ export default function OTPScreen({ navigation, route }: Props) {
         return;
       }
 
-      await registerCustomer({
+      const regRes: any = await registerCustomer({
         name,
         email: isPhone ? email : (email || value),
         phoneNumber: isPhone ? (phoneNumber || value) : (phoneNumber || ''),
         password,
       });
 
+      // extract token and customer info if available
+      const token = regRes?.data?.token ?? regRes?.data?.accessToken ?? regRes?.accessToken ?? regRes?.token;
+      const customer = regRes?.data?.customer ?? regRes?.data?.user ?? regRes?.data ?? regRes;
+
+      if (token) {
+        setAuthToken(token);
+        setToken(token).catch(() => {});
+      }
+
       setUserData({
-        name,
-        email: isPhone ? email : (email || value),
-        phoneNumber: isPhone ? (phoneNumber || value) : (phoneNumber || ''),
+        name: customer?.name || name,
+        email: customer?.email || (isPhone ? email : (email || value)),
+        phoneNumber: customer?.phoneNumber || (isPhone ? (phoneNumber || value) : (phoneNumber || '')),
         password,
+        token: token || '',
+        id: customer?._id || customer?.id || '',
       });
 
       Alert.alert('Success', 'Account created successfully!', [

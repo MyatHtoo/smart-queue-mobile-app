@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
 import { useUser } from '../../src/contexts/UserContext';
-import { changeUsername } from '../../src/services/api';
+import { changeUsername, setAuthToken } from '../../src/services/api';
 
 type Props = {
   navigation: any;
@@ -10,7 +10,7 @@ type Props = {
 };
 
 const EditProfileScreen = ({ navigation, route }: Props) => {
-  const { userData, setUserData } = useUser();
+  const { userData, setUserData, token } = useUser();
   const [username, setUsername] = useState(userData.name || '');
   const [email, setEmail] = useState(userData.email || '');
   const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '');
@@ -43,6 +43,13 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         payload.newUsername = username;
 
         console.log('Change username payload:', payload);
+        // ensure api has token from storage
+        try {
+          if (token) setAuthToken(token);
+        } catch (e) {
+          console.warn('Failed to load token from context', e);
+        }
+
         const resp: any = await changeUsername(payload);
         console.log('Change username response:', resp);
         const success = resp?.data?.success ?? false;

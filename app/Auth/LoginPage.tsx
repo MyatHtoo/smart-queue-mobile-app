@@ -19,7 +19,7 @@ import { loginCustomer, setAuthToken } from "../../src/services/api";
 
 export default function LoginPage() {
   const navigation = useNavigation();
-  const { userData, setUserData } = useUser();
+  const { userData, setUserData, setToken } = useUser();
 
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -87,6 +87,8 @@ export default function LoginPage() {
 
       // set api auth token for subsequent requests
       if (token) setAuthToken(token);
+      // persist token via context
+      if (token) setToken(token).catch(() => {});
 
       return true;
     } catch (error: any) {
