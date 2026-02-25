@@ -2,6 +2,11 @@
 
 const BASE_URL = 'https://smart-q-backend-nestjs.onrender.com';
 const API_URL = `${BASE_URL}/api`;
+let authToken: string | null = null;
+
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+};
 
 type RequestOptions = {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -16,8 +21,10 @@ async function request<T>(
   const { method, body, headers } = options;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000); 
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  
 
+  // React Native: window/localStorage not available. Remove token logic or use AsyncStorage if needed.
   const config: RequestInit = {
     method,
     signal: controller.signal,
@@ -46,7 +53,13 @@ async function request<T>(
           ? responseData.message.join(', ')
           : responseData.message || `Request failed (${response.status})`;
 
-      console.log('[API] Error:', message);
+      console.error('[API ERROR]', {
+        url,
+        method,
+        status: response.status,
+        message,
+      });
+
       throw new Error(message);
     }
 
@@ -55,21 +68,18 @@ async function request<T>(
     if (error.name === 'AbortError') {
       throw new Error('Request timeout. Please check your connection.');
     }
-    console.log('[API] Fetch error:', error.message);
+
+    console.error('[API FETCH ERROR]', error.message);
     throw error;
   }
 }
+
+// ================= CUSTOMER =================
 
 export type RegisterCustomerPayload = {
   name: string;
   email: string;
   phoneNumber: string;
-  password: string;
-};
-
-export type LoginCustomerPayload = {
-  usernameOrEmail?: string;
-  phoneNumber?: string;
   password: string;
 };
 
@@ -85,6 +95,12 @@ export const registerCustomer = (data: RegisterCustomerPayload) => {
   });
 };
 
+export type LoginCustomerPayload = {
+  usernameOrEmail?: string;
+  phoneNumber?: string;
+  password: string;
+};
+
 export const loginCustomer = (data: LoginCustomerPayload) => {
   return request<{
     data: {
@@ -97,28 +113,24 @@ export const loginCustomer = (data: LoginCustomerPayload) => {
   });
 };
 
-export type SendPhoneOtpResponse = {
-  data: {
-    success: boolean;
-    message: string;
-  };
-};
+// ================= PHONE OTP =================
 
 export const sendPhoneOtp = (data: { phoneNumber: string }) => {
-  return request<SendPhoneOtpResponse>('/customers/send-phone-otp', {
+  return request<{
+    data: {
+      success: boolean;
+      message: string;
+    };
+  }>('/customers/send-phone-otp', {
     method: 'POST',
     body: data,
   });
 };
 
-
-
-export type VerifyPhoneOtpPayload = {
+export const verifyPhoneOtp = (data: {
   phoneNumber: string;
   otp: string;
-};
-
-export const verifyPhoneOtp = (data: VerifyPhoneOtpPayload) => {
+}) => {
   return request<{
     data: {
       verified: boolean;
@@ -130,6 +142,82 @@ export const verifyPhoneOtp = (data: VerifyPhoneOtpPayload) => {
   });
 };
 
+// ================= EMAIL OTP =================
+
+export const sendEmailOtp = (data: { email: string }) => {
+  return request<{
+    data: {
+      success: boolean;
+      message: string;
+    };
+  }>('/customers/send-email-otp', {
+    method: 'POST',
+    body: data,
+  });
+};
+
+export const verifyEmailOtp = (data: {
+  email: string;
+  otp: string;
+}) => {
+  return request<{
+    data: {
+      verified: boolean;
+      message: string;
+    };
+  }>('/customers/verify-email-otp', {
+    method: 'POST',
+    body: data,
+  });
+};
+export type ChangeUsernamePayload = {
+  username: string;
+  email?: string;
+  phoneNumber?: string;
+  id?: string;
+};
+
+export const changeUsername = async (data: ChangeUsernamePayload) => {
+  // Try POST first (common), but some backends may expect PATCH/PUT.
+  try {
+    return await request<{
+      data: {
+        success: boolean;
+        message: string;
+        customer?: any;
+      };
+    }>('/customers/change-username', {
+      method: 'POST',
+      body: data,
+    });
+  } catch (err: any) {
+    const msg = String(err?.message || err || '');
+    if (/cannot post/i.test(msg) || /not found/i.test(msg) || /cannot (post|put|patch)/i.test(msg)) {
+      try {
+        return await request<{
+          data: {
+            success: boolean;
+            message: string;
+            customer?: any;
+          };
+        }>('/customers/change-username', {
+          method: 'PATCH',
+          body: data,
+        });
+      } catch (err2: any) {
+        throw err2;
+      }
+    }
+
+    throw err;
+  }
+};
+
+export const getShops = () => {
+  return request<any>('/shops/all', {
+    method: 'GET',
+  });
+};
 
 
 export default {
@@ -137,4 +225,6 @@ export default {
   loginCustomer,
   sendPhoneOtp,
   verifyPhoneOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
 };

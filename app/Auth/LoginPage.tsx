@@ -45,7 +45,7 @@ export default function LoginPage() {
       }
 
       setUserData({
-        username: response.username || usernameOrEmail,
+        name: response.username || usernameOrEmail,
         email: response.email || (loginWithPhone ? '' : usernameOrEmail),
         phoneNumber: response.phoneNumber || (loginWithPhone ? phoneNumber : ''),
         password: password,
@@ -56,14 +56,14 @@ export default function LoginPage() {
       // Fallback: still navigate for now if backend is not available
       if (loginWithPhone) {
         setUserData({
-          username: userData.username || '',
+          name: userData.name || '',
           email: userData.email || '',
           phoneNumber: phoneNumber,
           password: password,
         });
       } else {
         setUserData({
-          username: usernameOrEmail,
+          name: usernameOrEmail,
           email: usernameOrEmail,
           phoneNumber: userData.phoneNumber || '',
           password: password,
@@ -80,7 +80,7 @@ export default function LoginPage() {
   const handleGoogleSignIn = () => {
     console.log("Google sign in");
     setUserData({
-      username: "Google User",
+      name: "Google User",
       email: "user@gmail.com",
       phoneNumber: userData.phoneNumber || '',
       password: "",

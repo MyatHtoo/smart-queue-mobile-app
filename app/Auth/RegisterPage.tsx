@@ -16,12 +16,74 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleSignInButton from "../../components/Google";
 import { useUser } from "../../src/contexts/UserContext";
-import { sendPhoneOtp } from "../../src/services/api";
+import { sendPhoneOtp, sendEmailOtp } from "../../src/services/api";
+
+type FieldProps = {
+  value: string;
+  onChange: (text: string) => void;
+  error?: string | undefined;
+};
+
+const PhoneFields = ({ value, onChange, error }: FieldProps) => (
+  <View>
+    <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
+      Phone Number
+    </Text>
+    <TextInput
+      placeholder="Enter your phone number"
+      value={value}
+      onChangeText={onChange}
+      keyboardType="phone-pad"
+      autoCapitalize="none"
+      editable={true}
+      maxLength={15}
+      style={{
+        backgroundColor: "#F5F5F5",
+        borderRadius: 12,
+        borderColor: error ? "#EF4444" : "#E5E7EB",
+        borderWidth: 1,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        fontSize: 16,
+        color: "#111827",
+      }}
+      placeholderTextColor="#9CA3AF"
+    />
+    {error && <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{error}</Text>}
+  </View>
+);
+
+const EmailFields = ({ value, onChange, error }: FieldProps) => (
+  <View>
+    <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
+      Email
+    </Text>
+    <TextInput
+      placeholder="Enter your email"
+      value={value}
+      onChangeText={onChange}
+      keyboardType="email-address"
+      autoCapitalize="none"
+      editable={true}
+      style={{
+        backgroundColor: "#F5F5F5",
+        borderRadius: 12,
+        borderColor: error ? "#EF4444" : "#E5E7EB",
+        borderWidth: 1,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        fontSize: 16,
+        color: "#111827",
+      }}
+      placeholderTextColor="#9CA3AF"
+    />
+    {error && <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{error}</Text>}
+  </View>
+);
 
 export default function RegisterPage() {
   const navigation = useNavigation();
   const { setUserData } = useUser();
-
   const [name, setname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,13 +110,24 @@ export default function RegisterPage() {
     console.log("Create account with:", name, usePhone ? phoneNumber : email, password);
 
     try {
-      // Send OTP to phone number (trim input to normalize)
+      // Send OTP to phone number or email (trim input to normalize)
       const valueToSend = usePhone ? phoneNumber.trim() : email.trim();
-      console.log(usePhone)
+      console.log(usePhone);
       console.log(valueToSend);
       console.log("Sending OTP request to:", valueToSend);
-      const otpResponse = await sendPhoneOtp({ phoneNumber: valueToSend });
+      const otpResponse = usePhone
+        ? await sendPhoneOtp({ phoneNumber: valueToSend })
+        : await sendEmailOtp({ email: valueToSend });
       console.log(otpResponse);
+
+      // Set user data immediately after registration request
+      setUserData({
+        name,
+        email: usePhone ? '' : email,
+        phoneNumber: usePhone ? valueToSend : '',
+        password,
+      });
+
       (navigation.navigate as any)("OTP", {
         type: usePhone ? "phone" : "email",
         value: valueToSend,
@@ -132,37 +205,18 @@ export default function RegisterPage() {
 
                 {/* Email or Phone Number Field */}
                 <View>
-                  <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-                    {usePhone ? "Phone Number" : "Email"}
-                  </Text>
-                  <TextInput
-                    placeholder={usePhone ? "Enter your phone number" : "Enter your email"}
-                    value={usePhone ? phoneNumber : email}
-                    onChangeText={(text) => {
-                      if (usePhone) {
-                        setPhoneNumber(text);
-                      } else {
-                        setEmail(text);
-                      }
-                      if (errors.contact) setErrors((e) => ({ ...e, contact: undefined }));
-                    }}
-                    keyboardType={usePhone ? "phone-pad" : "email-address"}
-                    autoCapitalize="none"
-                    maxLength={usePhone ? 15 : undefined}
-                    style={{
-                      backgroundColor: "#F5F5F5",
-                      borderRadius: 12,
-                      borderColor: errors.contact ? "#EF4444" : "#E5E7EB",
-                      borderWidth: 1,
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                      fontSize: 16,
-                      color: "#111827",
-                    }}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                  {errors.contact && (
-                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.contact}</Text>
+                  {usePhone ? (
+                    <PhoneFields
+                      value={phoneNumber}
+                      onChange={(text) => { setPhoneNumber(text); if (errors.contact) setErrors((e) => ({ ...e, contact: undefined })); }}
+                      error={errors.contact}
+                    />
+                  ) : (
+                    <EmailFields
+                      value={email}
+                      onChange={(text) => { setEmail(text); if (errors.contact) setErrors((e) => ({ ...e, contact: undefined })); }}
+                      error={errors.contact}
+                    />
                   )}
                 </View>
 
@@ -214,7 +268,7 @@ export default function RegisterPage() {
                 {/* Toggle Register Mode */}
                 <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
-                  <TouchableOpacity onPress={() => { setUsePhone(usePhone); setErrors((e) => ({ ...e, contact: undefined })); }}>
+                  <TouchableOpacity onPress={() => { setUsePhone(!usePhone); setErrors((e) => ({ ...e, contact: undefined })); }}>
                     <Text style={{ marginHorizontal: 16, color: "#000000" }}>
                       {usePhone ? "Use Email instead" : "Use Phone Number instead"}
                     </Text>

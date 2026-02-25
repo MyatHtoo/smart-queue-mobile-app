@@ -10,12 +10,12 @@ type Props = {
 
 const AccountView = ({ navigation, route }: Props) => {
   const { userData, setUserData } = useUser();
-    const [username, setUsername] = useState(userData.username || 'Harry');
-    const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
+    const [username, setUsername] = useState(userData.name || '');
+    const [email, setEmail] = useState(userData.email || '');
 
   useEffect(() => {
-    if (userData.username) {
-      setUsername(userData.username);
+    if (userData.name) {
+      setUsername(userData.name);
     }
     if (userData.email) {
       setEmail(userData.email);
@@ -24,7 +24,7 @@ const AccountView = ({ navigation, route }: Props) => {
 
     const handleUpdate = () => {
     setUserData({
-      username: username,
+      name: username,
       email: email,
       phoneNumber: userData.phoneNumber,
       password: userData.password,
