@@ -8,6 +8,7 @@ export interface Restaurant {
   distance: string;
   waitInfo: string;
   image: any;
+  shopType?: string;
 }
 
 export type ScreensStackParamList = {

@@ -216,6 +216,12 @@ export const changeUsername = async (data: ChangeUsernamePayload) => {
   }
 };
 
+export const getShops = () => {
+  return request<any>('/shops/all', {
+    method: 'GET',
+  });
+};
+
 
 export default {
   registerCustomer,
@@ -224,4 +230,5 @@ export default {
   verifyPhoneOtp,
   sendEmailOtp,
   verifyEmailOtp,
+  getShops,
 };
