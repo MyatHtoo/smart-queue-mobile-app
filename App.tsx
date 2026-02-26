@@ -14,6 +14,7 @@ import Settings from "./app/Auth/Settings";
 import Support from "./app/Auth/Support";
 import OTPScreen from "./app/Auth/OTP";
 import { UserProvider } from "./src/contexts/UserContext";
+import LiveLocationScreen from "./app/screens/LiveLocationScreen";
 
 export default function App() {
   const Stack = createNativeStackNavigator();
@@ -39,6 +40,7 @@ export default function App() {
             <Stack.Screen name="EditProfile" component={EditProfile} />
             <Stack.Screen name="Settings" component={Settings} />
             <Stack.Screen name="Support" component={Support} />
+            <Stack.Screen name="LiveLocationScreen" component={LiveLocationScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>

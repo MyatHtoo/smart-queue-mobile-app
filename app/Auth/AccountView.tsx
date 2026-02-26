@@ -62,6 +62,9 @@ const AccountView = ({ navigation, route }: Props) => {
     console.log('Support pressed');
     navigation.navigate('Support');
   };
+  const handleLiveLocation = () => {
+  navigation.navigate('LiveLocationScreen');
+};
 
   // --------------------------------------------------
   // Render: The UI that users see
@@ -143,6 +146,24 @@ const AccountView = ({ navigation, route }: Props) => {
           </TouchableOpacity>
 
           <Divider style={styles.menuDivider} />
+          {/* Option: Live Location */}
+<TouchableOpacity style={styles.menuItem} onPress={handleLiveLocation}>
+  <View style={styles.menuItemLeft}>
+    <IconButton
+      icon="map-marker-radius"
+      size={24}
+      iconColor="#1A80A4"
+      style={styles.menuIcon}
+    />
+    <Text style={styles.menuText}>Live Location</Text>
+  </View>
+  <IconButton
+    icon="chevron-right"
+    size={24}
+    iconColor="#999"
+    style={styles.chevronIcon}
+  />
+</TouchableOpacity>
 
           {/* Option 3: Logout (no arrow on right) */}
           <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>

@@ -10,24 +10,24 @@ type Props = {
 
 const EditProfileScreen = ({ navigation, route }: Props) => {
   const { userData, setUserData } = useUser();
-  const [username, setUsername] = useState(userData.username || 'Harry');
-  const [email, setEmail] = useState(userData.email || 'hmin44851@gmail.com');
-  const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '1234567890');
-  const [password, setPassword] = useState(userData.password || '12345678');
+  const [username, setUsername] = useState(userData.name || '');
+  const [email, setEmail] = useState(userData.email || '');
+  const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '');
+  const [password, setPassword] = useState(userData.password || '');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdated, setIsUpdated] = useState(false);
 
   useEffect(() => {
-    setUsername(userData.username || 'Harry');
-    setEmail(userData.email || 'hmin44851@gmail.com');
-    setPhoneNumber(userData.phoneNumber || '1234567890');
-    setPassword(userData.password || '12345678');
+    setUsername(userData.name || '');
+    setEmail(userData.email || '');
+    setPhoneNumber(userData.phoneNumber || '');
+    setPassword(userData.password || '');
   }, [userData]);
 
 
   const handleUpdate = () => {
     setUserData({
-      username: username,
+      name: username,
       email: email,
       phoneNumber: phoneNumber,
       password: password,
