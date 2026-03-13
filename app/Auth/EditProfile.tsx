@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
 import { useUser } from '../../src/contexts/UserContext';
 import { changePassword, changeUsername, sendPhoneOtp, setAuthToken, verifyPhoneOtp } from '../../src/services/api';
 
 type Props = {
   navigation: any;
-  route: any;
 };
 
 const getUserIdFromToken = (jwtToken?: string | null): string => {
@@ -33,7 +32,7 @@ const getUserIdFromToken = (jwtToken?: string | null): string => {
   }
 };
 
-const EditProfileScreen = ({ navigation, route }: Props) => {
+const EditProfileScreen = ({ navigation }: Props) => {
   const { userData, setUserData, token } = useUser();
   const [username, setUsername] = useState(userData.name || '');
   const [email, setEmail] = useState(userData.email || '');
@@ -47,23 +46,24 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpTargetPhone, setOtpTargetPhone] = useState('');
 
+  const resetPhoneVerificationState = () => {
+    setPhoneOtp('');
+    setIsPhoneOtpSent(false);
+    setIsPhoneVerified(false);
+    setOtpTargetPhone('');
+  };
+
   useEffect(() => {
     setUsername(userData.name || '');
     setEmail(userData.email || '');
     setPhoneNumber(userData.phoneNumber || ''); 
     setPassword(userData.password || '');
-    setPhoneOtp('');
-    setIsPhoneOtpSent(false);
-    setIsPhoneVerified(false);
-    setOtpTargetPhone('');
+    resetPhoneVerificationState();
   }, [userData]);
 
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value);
-    setPhoneOtp('');
-    setIsPhoneOtpSent(false);
-    setIsPhoneVerified(false);
-    setOtpTargetPhone('');
+    resetPhoneVerificationState();
   };
 
   const normalizedCurrentPhone = (userData.phoneNumber || '').trim();
@@ -183,7 +183,6 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       }
 
       // If username changed and backend supports changing username, call API
-      const respMessages: string[] = [];
       if (usernameChanged) {
         const payload = buildUsernamePayload(resolvedUserId);
 
@@ -199,7 +198,6 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           const resp: any = await changeUsername(payload);
           console.log('Change username response:', resp);
           const { success, message } = isApiSuccess(resp);
-          if (message) respMessages.push(message);
 
           if (!success) {
             Alert.alert('Error', message || 'Failed to update username');
@@ -222,7 +220,6 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
 
           const retryResp: any = await changeUsername(payload);
           const { success: retrySuccess, message: retryMessage } = isApiSuccess(retryResp);
-          if (retryMessage) respMessages.push(retryMessage);
 
           if (!retrySuccess) {
             Alert.alert('Error', retryMessage || 'Failed to update username');
@@ -269,7 +266,6 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           const passwordResp: any = await changePassword(passwordPayload);
           console.log('Change password response:', passwordResp);
           const { success: passwordSuccess, message: passwordMessage } = isApiSuccess(passwordResp);
-          if (passwordMessage) respMessages.push(passwordMessage);
 
           if (!passwordSuccess) {
             Alert.alert('Error', passwordMessage || 'Failed to update password');

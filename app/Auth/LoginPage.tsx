@@ -17,6 +17,45 @@ import GoogleSignInButton from "../../components/Google";
 import { useUser } from "../../src/contexts/UserContext";
 import { loginCustomer, setAuthToken } from "../../src/services/api";
 
+type LoginPayload = {
+  email?: string;
+  phoneNumber?: string;
+  usernameOrEmail?: string;
+  password: string;
+};
+
+const formatAuthMessage = (raw: string, isPhone: boolean) => {
+  let msg = raw;
+  if (!isPhone) {
+    msg = msg.replace(/phone number|phone/gi, "username/email");
+  } else {
+    msg = msg.replace(/username\/email|username|email/gi, "phone number");
+  }
+  return msg;
+};
+
+const extractToken = (response: any) =>
+  response?.data?.accessToken ?? response?.data?.token ?? response?.accessToken ?? response?.token;
+
+const extractUser = (response: any) =>
+  response?.data?.user ??
+  response?.data?.customer ??
+  (response?.data && typeof response.data !== "object" ? undefined : response?.data) ??
+  response?.user ??
+  response;
+
+const extractUserId = (response: any, user: any) =>
+  user?._id ||
+  user?.id ||
+  user?.userId ||
+  user?.userID ||
+  user?.customerId ||
+  user?.customer_id ||
+  user?._doc?._id ||
+  response?.data?.id ||
+  response?.data?._id ||
+  "";
+
 export default function LoginPage() {
   const navigation = useNavigation();
   const { userData, setUserData, setToken } = useUser();
@@ -27,43 +66,29 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginWithPhone, setLoginWithPhone] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [lastPayload, setLastPayload] = useState<any>(null);
-  const [lastResponse, setLastResponse] = useState<any>(null);
 
   // shared login routine
-  const doLogin = async (payload: any, isPhone: boolean) => {
+  const doLogin = async (payload: LoginPayload, isPhone: boolean) => {
     try {
       setErrorMessage("");
-      let finalPayload = { ...payload };
+      let finalPayload: LoginPayload = { ...payload };
       if (payload.usernameOrEmail || payload.email) {
         const v = (payload.usernameOrEmail ?? payload.email ?? "").trim();
         finalPayload = { email: v, password: payload.password };
       }
 
-      setLastPayload(finalPayload);
       console.log("Login payload (sent):", finalPayload);
 
       const response: any = await loginCustomer(finalPayload);
       console.log("Login response:", response);
-      setLastResponse(response);
 
-      const token = response?.data?.accessToken ?? response?.data?.token ?? response?.accessToken ?? response?.token;
-      const user = response?.data?.user ?? response?.data?.customer ?? (response?.data && typeof response.data !== 'object' ? undefined : response?.data) ?? response?.user ?? response;
+      const token = extractToken(response);
+      const user = extractUser(response);
 
       const respMessage = response?.message ?? response?.data?.message;
       if (respMessage && !token) {
-        const rawMsg = Array.isArray(respMessage) ? respMessage.join(', ') : respMessage.toString();
-        const formatMessage = (raw: string) => {
-          let s = raw;
-          if (!isPhone) {
-            s = s.replace(/phone number|phone/gi, 'username/email');
-          } else {
-            s = s.replace(/username\/email|username|email/gi, 'phone number');
-          }
-          return s;
-        };
-        setErrorMessage(formatMessage(rawMsg));
-        setLastResponse(response);
+        const rawMsg = Array.isArray(respMessage) ? respMessage.join(", ") : respMessage.toString();
+        setErrorMessage(formatAuthMessage(rawMsg, isPhone));
         return false;
       }
 
@@ -72,7 +97,6 @@ export default function LoginPage() {
           ? "Incorrect phone number or password."
           : "Incorrect username/email or password.";
         setErrorMessage(message);
-        setLastResponse(response);
         return false;
       }
 
@@ -82,17 +106,7 @@ export default function LoginPage() {
         phoneNumber: user.phoneNumber || (isPhone ? payload.phoneNumber : user.phoneNumber || ""),
         password: payload.password,
         token: token || user.token || '',
-        id:
-          user._id ||
-          user.id ||
-          user.userId ||
-          user.userID ||
-          user.customerId ||
-          user.customer_id ||
-          user._doc?._id ||
-          response?.data?.id ||
-          response?.data?._id ||
-          '',
+        id: extractUserId(response, user),
       });
 
       // set api auth token for subsequent requests
@@ -103,18 +117,8 @@ export default function LoginPage() {
       return true;
     } catch (error: any) {
       console.error("Login failed:", error);
-      const rawErr = error?.message ?? (typeof error === 'string' ? error : JSON.stringify(error));
-      const formatMessage = (raw: string) => {
-        let s = raw;
-        if (!isPhone) {
-          s = s.replace(/phone number|phone/gi, 'username/email');
-        } else {
-          s = s.replace(/username\/email|username|email/gi, 'phone number');
-        }
-        return s;
-      };
-      setErrorMessage(formatMessage(rawErr) || "Login failed. Please try again.");
-      setLastResponse(error);
+      const rawErr = error?.message ?? (typeof error === "string" ? error : JSON.stringify(error));
+      setErrorMessage(formatAuthMessage(rawErr, isPhone) || "Login failed. Please try again.");
       return false;
     }
   };
