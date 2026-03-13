@@ -13,13 +13,14 @@ type RequestOptions = {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: any;
   headers?: Record<string, string>;
+  skipAuth?: boolean;
 };
 
 async function request<T>(
   endpoint: string,
   options: RequestOptions
 ): Promise<T> {
-  const { method, body, headers } = options;
+  const { method, body, headers, skipAuth } = options;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000); 
@@ -27,7 +28,7 @@ async function request<T>(
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (authToken) {
+  if (authToken && !skipAuth) {
     defaultHeaders['Authorization'] = `Bearer ${authToken}`;
   }
 
@@ -112,14 +113,26 @@ export type SendPhoneOtpResponse = {
   data: {
     success: boolean;
     message: string;
+    otp?: string;
   };
+  otp?: string;
 };
 
-export const sendPhoneOtp = (data: { phoneNumber: string }) => {
-  return request<SendPhoneOtpResponse>('/customers/send-phone-otp', {
+export const sendPhoneOtp = async (data: { phoneNumber: string }) => {
+  const response = await request<SendPhoneOtpResponse>('/customers/send-phone-otp', {
     method: 'POST',
     body: data,
+    skipAuth: true,
   });
+
+  const otp = response?.data?.otp ?? response?.otp;
+  if (otp) {
+    console.log('[API] Phone OTP (dev):', otp);
+  } else {
+    console.log('[API] Phone OTP not returned by backend.');
+  }
+
+  return response;
 };
 
 
@@ -137,6 +150,7 @@ export const verifyPhoneOtp = (data: VerifyPhoneOtpPayload) => {
   }>('/customers/verify-phone-otp', {
     method: 'POST',
     body: data,
+    skipAuth: true,
   });
 };
 
@@ -144,14 +158,26 @@ export type SendEmailOtpResponse = {
   data: {
     success: boolean;
     message: string;
+    otp?: string;
   };
+  otp?: string;
 };
 
-export const sendEmailOtp = (data: { email: string }) => {
-  return request<SendEmailOtpResponse>('/customers/send-email-otp', {
+export const sendEmailOtp = async (data: { email: string }) => {
+  const response = await request<SendEmailOtpResponse>('/customers/send-email-otp', {
     method: 'POST',
     body: data,
+    skipAuth: true,
   });
+
+  const otp = response?.data?.otp ?? response?.otp;
+  if (otp) {
+    console.log('[API] Email OTP (dev):', otp);
+  } else {
+    console.log('[API] Email OTP not returned by backend.');
+  }
+
+  return response;
 };
 
 export type VerifyEmailOtpPayload = {
@@ -168,6 +194,7 @@ export const verifyEmailOtp = (data: VerifyEmailOtpPayload) => {
   }>('/customers/verify-email-otp', {
     method: 'POST',
     body: data,
+    skipAuth: true,
   });
 };
 
