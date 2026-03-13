@@ -82,7 +82,17 @@ export default function LoginPage() {
         phoneNumber: user.phoneNumber || (isPhone ? payload.phoneNumber : user.phoneNumber || ""),
         password: payload.password,
         token: token || user.token || '',
-        id: user._id || user.id || user._doc?._id || '',
+        id:
+          user._id ||
+          user.id ||
+          user.userId ||
+          user.userID ||
+          user.customerId ||
+          user.customer_id ||
+          user._doc?._id ||
+          response?.data?.id ||
+          response?.data?._id ||
+          '',
       });
 
       // set api auth token for subsequent requests

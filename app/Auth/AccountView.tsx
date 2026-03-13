@@ -28,6 +28,8 @@ const AccountView = ({ navigation, route }: Props) => {
       email: email,
       phoneNumber: userData.phoneNumber,
       password: userData.password,
+      token: userData.token || '',
+      id: userData.id || '',
     });
     }
 

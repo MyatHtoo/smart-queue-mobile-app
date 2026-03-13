@@ -2,11 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
 import { useUser } from '../../src/contexts/UserContext';
-import { changeUsername, setAuthToken } from '../../src/services/api';
+import { changePassword, changeUsername, sendPhoneOtp, setAuthToken, verifyPhoneOtp } from '../../src/services/api';
 
 type Props = {
   navigation: any;
   route: any;
+};
+
+const getUserIdFromToken = (jwtToken?: string | null): string => {
+  if (!jwtToken) return '';
+  try {
+    const parts = jwtToken.split('.');
+    if (parts.length < 2) return '';
+    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadBase64.padEnd(payloadBase64.length + ((4 - (payloadBase64.length % 4)) % 4), '=');
+    const json = atob(padded);
+    const payload = JSON.parse(json);
+    return (
+      payload?.sub ||
+      payload?.userId ||
+      payload?.userID ||
+      payload?.id ||
+      payload?._id ||
+      payload?.customerId ||
+      payload?.customer_id ||
+      ''
+    );
+  } catch {
+    return '';
+  }
 };
 
 const EditProfileScreen = ({ navigation, route }: Props) => {
@@ -17,49 +41,243 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   const [password, setPassword] = useState(userData.password || '');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdated, setIsUpdated] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [isPhoneOtpSent, setIsPhoneOtpSent] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpTargetPhone, setOtpTargetPhone] = useState('');
 
   useEffect(() => {
     setUsername(userData.name || '');
     setEmail(userData.email || '');
-    setPhoneNumber(userData.phoneNumber || '');
+    setPhoneNumber(userData.phoneNumber || ''); 
     setPassword(userData.password || '');
+    setPhoneOtp('');
+    setIsPhoneOtpSent(false);
+    setIsPhoneVerified(false);
+    setOtpTargetPhone('');
   }, [userData]);
+
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(value);
+    setPhoneOtp('');
+    setIsPhoneOtpSent(false);
+    setIsPhoneVerified(false);
+    setOtpTargetPhone('');
+  };
+
+  const normalizedCurrentPhone = (userData.phoneNumber || '').trim();
+  const normalizedNewPhone = (phoneNumber || '').trim();
+  const phoneChanged = normalizedNewPhone !== normalizedCurrentPhone;
+  const usernameChanged = !!(username && username !== userData.name);
+  const passwordChanged = !!(password && password !== userData.password);
+  const isOtpRequiredError = (msg: string) =>
+    /phone\s*number.*not\s*verified.*otp/i.test(msg) ||
+    (msg.toLowerCase().includes('otp') && msg.toLowerCase().includes('not verified'));
+
+  const getErrorMessage = (error: any, fallback = '') =>
+    String(error?.message || error?.response?.data?.message || error || fallback);
+
+  const isApiSuccess = (resp: any) => {
+    const success = resp?.data?.success ?? false;
+    const message = resp?.data?.message ?? resp?.message ?? '';
+    return {
+      success: success || /success/i.test(String(message)),
+      message,
+    };
+  };
+
+  const buildUsernamePayload = (resolvedUserId: string) => {
+    const payload: any = {
+      username,
+      newUsername: username,
+    };
+
+    if (resolvedUserId) {
+      payload.id = resolvedUserId;
+      payload.customerId = resolvedUserId;
+      payload.customer_id = resolvedUserId;
+      payload.userId = resolvedUserId;
+      payload.userID = resolvedUserId;
+      payload._id = resolvedUserId;
+    }
+
+    if (userData.email) {
+      payload.email = userData.email;
+    }
+
+    if (userData.phoneNumber) {
+      payload.phoneNumber = userData.phoneNumber;
+    }
+
+    return payload;
+  };
+
+  const ensurePhoneVerification = async (
+    targetPhone: string,
+    sentMessage: string
+  ): Promise<boolean> => {
+    if (!targetPhone) {
+      Alert.alert('Verification Required', 'Phone number is required for OTP verification.');
+      return false;
+    }
+
+    if (!isPhoneOtpSent || otpTargetPhone !== targetPhone) {
+      setOtpLoading(true);
+      try {
+        await sendPhoneOtp({ phoneNumber: targetPhone });
+        setIsPhoneOtpSent(true);
+        setIsPhoneVerified(false);
+        setOtpTargetPhone(targetPhone);
+        Alert.alert('OTP Sent', sentMessage);
+      } catch (sendErr: any) {
+        Alert.alert('OTP Error', getErrorMessage(sendErr, 'Failed to send OTP. Please try again.'));
+      } finally {
+        setOtpLoading(false);
+      }
+      return false;
+    }
+
+    if (phoneOtp.trim().length !== 6) {
+      Alert.alert('OTP Required', 'Please enter the 6-digit OTP to continue.');
+      return false;
+    }
+
+    setOtpLoading(true);
+    try {
+      const verifyRes: any = await verifyPhoneOtp({
+        phoneNumber: targetPhone,
+        otp: phoneOtp.trim(),
+      });
+
+      if (!verifyRes?.data?.verified) {
+        Alert.alert('Invalid OTP', verifyRes?.data?.message || 'Phone verification failed.');
+        return false;
+      }
+
+      setIsPhoneVerified(true);
+      return true;
+    } catch (verifyErr: any) {
+      Alert.alert('Verification Failed', getErrorMessage(verifyErr, 'OTP verification failed. Please try again.'));
+      return false;
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
 
   const handleUpdate = async () => {
     try {
+      const activeToken = token || userData.token || null;
+      const resolvedUserId = userData.id || getUserIdFromToken(activeToken);
+      if (activeToken) {
+        setAuthToken(activeToken);
+      }
+
+      if (phoneChanged && !isPhoneVerified) {
+        const verified = await ensurePhoneVerification(
+          normalizedNewPhone,
+          'Enter the OTP sent to your new phone number, then press Update again.'
+        );
+        if (!verified) return;
+      }
+
       // If username changed and backend supports changing username, call API
-      let respMessage = '';
-      if (username && username !== userData.name) {
-        const payload: any = { username };
-        if (userData.email) payload.email = userData.email;
-        if (userData.phoneNumber) payload.phoneNumber = userData.phoneNumber;
-        if (userData.id) {
-          payload.id = userData.id;
-          // also include backend-specific keys if required
-          payload.customer_id = userData.id;
-        }
-        // include alternative key name used by backend
-        payload.newUsername = username;
+      const respMessages: string[] = [];
+      if (usernameChanged) {
+        const payload = buildUsernamePayload(resolvedUserId);
 
         console.log('Change username payload:', payload);
         // ensure api has token from storage
         try {
-          if (token) setAuthToken(token);
+          if (activeToken) setAuthToken(activeToken);
         } catch (e) {
           console.warn('Failed to load token from context', e);
         }
 
-        const resp: any = await changeUsername(payload);
-        console.log('Change username response:', resp);
-        const success = resp?.data?.success ?? false;
-        const message = resp?.data?.message ?? resp?.message ?? '';
-        respMessage = message;
+        try {
+          const resp: any = await changeUsername(payload);
+          console.log('Change username response:', resp);
+          const { success, message } = isApiSuccess(resp);
+          if (message) respMessages.push(message);
 
-        // consider it success if backend indicates success or the message contains 'success'
-        const isSuccess = success || /success/i.test(String(message));
-        if (!isSuccess) {
-          Alert.alert('Error', message || 'Failed to update username');
+          if (!success) {
+            Alert.alert('Error', message || 'Failed to update username');
+            return;
+          }
+        } catch (usernameErr: any) {
+          const usernameErrMsg = getErrorMessage(usernameErr);
+          const requiresOtp = isOtpRequiredError(usernameErrMsg);
+
+          if (!requiresOtp) {
+            throw usernameErr;
+          }
+
+          const targetPhone = normalizedNewPhone || normalizedCurrentPhone;
+          const verified = await ensurePhoneVerification(
+            targetPhone,
+            'Enter OTP and press Update again to complete username change.'
+          );
+          if (!verified) return;
+
+          const retryResp: any = await changeUsername(payload);
+          const { success: retrySuccess, message: retryMessage } = isApiSuccess(retryResp);
+          if (retryMessage) respMessages.push(retryMessage);
+
+          if (!retrySuccess) {
+            Alert.alert('Error', retryMessage || 'Failed to update username');
+            return;
+          }
+        }
+      }
+
+      if (passwordChanged) {
+        if (!userData.password) {
+          Alert.alert('Error', 'Current password is missing. Please login again and try updating password.');
+          return;
+        }
+
+        const passwordPayload: any = {
+          oldPassword: userData.password,
+          newPassword: password,
+        };
+
+        if (resolvedUserId) {
+          passwordPayload.id = resolvedUserId;
+          passwordPayload.customerId = resolvedUserId;
+          passwordPayload.customer_id = resolvedUserId;
+          passwordPayload.userId = resolvedUserId;
+          passwordPayload.userID = resolvedUserId;
+          passwordPayload._id = resolvedUserId;
+        }
+
+        if (userData.email) {
+          passwordPayload.email = userData.email;
+        }
+
+        if (userData.phoneNumber) {
+          passwordPayload.phoneNumber = userData.phoneNumber;
+        }
+
+        console.log('Change password payload:', {
+          ...passwordPayload,
+          oldPassword: '***',
+          newPassword: '***',
+        });
+
+        try {
+          const passwordResp: any = await changePassword(passwordPayload);
+          console.log('Change password response:', passwordResp);
+          const { success: passwordSuccess, message: passwordMessage } = isApiSuccess(passwordResp);
+          if (passwordMessage) respMessages.push(passwordMessage);
+
+          if (!passwordSuccess) {
+            Alert.alert('Error', passwordMessage || 'Failed to update password');
+            return;
+          }
+        } catch (passwordErr: any) {
+          const passwordErrMsg = getErrorMessage(passwordErr, 'Failed to update password');
+          Alert.alert('Error', passwordErrMsg);
           return;
         }
       }
@@ -70,9 +288,11 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         email: userData.email ? email : userData.email,
         phoneNumber: userData.phoneNumber ? phoneNumber : userData.phoneNumber,
         password: password,
+        token: userData.token || token || '',
+        id: resolvedUserId || '',
       });
 
-      const successMessage = respMessage || 'Profile updated successfully!';
+      const successMessage = 'Updated successfully';
       Alert.alert('Success', successMessage, [
         {
           text: 'OK',
@@ -83,8 +303,9 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         },
       ]);
     } catch (err: any) {
-      console.error('Change username error:', err);
-      Alert.alert('Error', err?.message || 'Failed to update profile');
+      const errMsg = String(err?.message || err || '');
+      console.error('Edit profile update error:', err);
+      Alert.alert('Error', errMsg || 'Failed to update profile');
     }
   };
 
@@ -164,13 +385,41 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
                 mode="outlined"
                 placeholder="Enter phone number"
                 value={phoneNumber}
-                onChangeText={setPhoneNumber}
+                onChangeText={handlePhoneNumberChange}
                 keyboardType="phone-pad"
                 style={styles.input}
                 textColor="#000"
                 outlineColor="#E0E0E0"
                 activeOutlineColor="#1A80A4"
               />
+
+              {phoneChanged || usernameChanged ? (
+                <>
+                  <Text style={styles.label}>Phone OTP</Text>
+                  <TextInput
+                    mode="outlined"
+                    placeholder="Enter 6-digit OTP"
+                    value={phoneOtp}
+                    onChangeText={setPhoneOtp}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    style={styles.input}
+                    textColor="#000"
+                    outlineColor="#E0E0E0"
+                    activeOutlineColor="#1A80A4"
+                    disabled={!isPhoneOtpSent}
+                  />
+                  {!isPhoneOtpSent ? (
+                    <Text style={styles.helperText}>
+                      Press Update to send OTP {phoneChanged ? 'to your new phone number' : 'for verification'}.
+                    </Text>
+                  ) : isPhoneVerified ? (
+                    <Text style={styles.verifiedText}>Phone number verified.</Text>
+                  ) : (
+                    <Text style={styles.helperText}>Enter OTP and press Update again to verify.</Text>
+                  )}
+                </>
+              ) : null}
             </>
           ) : null}
 
@@ -194,6 +443,8 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           onPress={isUpdated ? () => navigation.navigate('Login') : handleUpdate}
           style={styles.updateButton}
           labelStyle={styles.updateButtonLabel}
+          loading={otpLoading}
+          disabled={otpLoading}
         >
           {isUpdated ? 'Login' : 'Update'}
         </Button>
@@ -284,6 +535,17 @@ const styles = StyleSheet.create({
   },
   disabledInput: {
     backgroundColor: '#F0F0F0',
+  },
+  helperText: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  verifiedText: {
+    color: '#0C8A43',
+    fontSize: 12,
+    marginTop: 6,
+    fontWeight: '600',
   },
   updateButton: {
     backgroundColor: '#17a2b8',

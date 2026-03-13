@@ -59,7 +59,6 @@ async function request<T>(
           ? responseData.message.join(', ')
           : responseData.message || `Request failed (${response.status})`;
 
-      console.log('[API] Error:', message);
       throw new Error(message);
     }
 
@@ -68,7 +67,6 @@ async function request<T>(
     if (error.name === 'AbortError') {
       throw new Error('Request timeout. Please check your connection.');
     }
-    console.log('[API] Fetch error:', error.message);
     throw error;
   }
 }
@@ -175,27 +173,57 @@ export const verifyEmailOtp = (data: VerifyEmailOtpPayload) => {
 
 export type ChangeUsernamePayload = {
   username: string;
+  newUsername?: string;
   email?: string;
   phoneNumber?: string;
   id?: string;
+  customerId?: string;
+  customer_id?: string;
+  userId?: string;
+  userID?: string;
+  _id?: string;
 };
 
 export const changeUsername = async (data: ChangeUsernamePayload) => {
-  // Try POST first (common), but some backends may expect PATCH/PUT.
-  try {
-    return await request<{
-      data: {
-        success: boolean;
-        message: string;
-        customer?: any;
-      };
-    }>('/customers/change-username', {
-      method: 'POST',
-      body: data,
-    });
-  } catch (err: any) {
-    const msg = String(err?.message || err || '');
-    if (/cannot post/i.test(msg) || /not found/i.test(msg) || /cannot (post|put|patch)/i.test(msg)) {
+  const username = data.newUsername ?? data.username;
+  const id = data.id ?? data.customerId ?? data.customer_id ?? data.userId ?? data.userID ?? data._id;
+
+  const basePayload: ChangeUsernamePayload = {
+    username,
+    newUsername: username,
+  };
+
+  const optionalIdentifiers: Pick<ChangeUsernamePayload, 'email' | 'phoneNumber'> = {
+    ...(data.email ? { email: data.email } : {}),
+    ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
+  };
+
+  const payloadVariants: ChangeUsernamePayload[] = [
+    { ...basePayload, ...optionalIdentifiers },
+    { ...basePayload },
+    ...(id
+      ? [
+          { ...basePayload, id },
+          { ...basePayload, customerId: id },
+          { ...basePayload, customer_id: id },
+          { ...basePayload, userId: id },
+          { ...basePayload, userID: id },
+          { ...basePayload, _id: id },
+          { ...basePayload, id, ...optionalIdentifiers },
+          { ...basePayload, customerId: id, ...optionalIdentifiers },
+          { ...basePayload, customer_id: id, ...optionalIdentifiers },
+          { ...basePayload, userId: id, ...optionalIdentifiers },
+          { ...basePayload, userID: id, ...optionalIdentifiers },
+          { ...basePayload, _id: id, ...optionalIdentifiers },
+        ]
+      : []),
+  ];
+
+  const methods: Array<'POST' | 'PATCH'> = ['POST', 'PATCH'];
+  let lastError: any;
+
+  for (const method of methods) {
+    for (const payload of payloadVariants) {
       try {
         return await request<{
           data: {
@@ -204,17 +232,102 @@ export const changeUsername = async (data: ChangeUsernamePayload) => {
             customer?: any;
           };
         }>('/customers/change-username', {
-          method: 'PATCH',
-          body: data,
+          method,
+          body: payload,
         });
-      } catch (err2: any) {
-        throw err2;
+      } catch (err: any) {
+        lastError = err;
       }
     }
-
-    throw err;
   }
+
+  throw lastError;
 };
+
+export type ChangePasswordPayload = {
+  oldPassword?: string;
+  newPassword?: string;
+  oldpassword?: string;
+  newpassword?: string;
+  email?: string;
+  phoneNumber?: string;
+  id?: string;
+  customerId?: string;
+  customer_id?: string;
+  userId?: string;
+  userID?: string;
+  _id?: string;
+};
+
+export type ChangepwPayload = ChangePasswordPayload;
+
+export const changePassword = async (data: ChangePasswordPayload) => {
+  const oldPassword = data.oldPassword ?? data.oldpassword;
+  const newPassword = data.newPassword ?? data.newpassword;
+  const id = data.id ?? data.customerId ?? data.customer_id ?? data.userId ?? data.userID ?? data._id;
+
+  if (!oldPassword || !newPassword) {
+    throw new Error('Both oldPassword and newPassword are required.');
+  }
+
+  const baseBody = {
+    oldPassword,
+    newPassword,
+  };
+
+  const optionalIdentifiers = {
+    ...(data.email ? { email: data.email } : {}),
+    ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
+  };
+
+  const payloadVariants: ChangePasswordPayload[] = [
+    { ...baseBody },
+    { ...baseBody, ...optionalIdentifiers },
+    ...(id
+      ? [
+          { ...baseBody, id },
+          { ...baseBody, customerId: id },
+          { ...baseBody, customer_id: id },
+          { ...baseBody, userId: id },
+          { ...baseBody, userID: id },
+          { ...baseBody, _id: id },
+          { ...baseBody, id, ...optionalIdentifiers },
+          { ...baseBody, customerId: id, ...optionalIdentifiers },
+          { ...baseBody, customer_id: id, ...optionalIdentifiers },
+          { ...baseBody, userId: id, ...optionalIdentifiers },
+          { ...baseBody, userID: id, ...optionalIdentifiers },
+          { ...baseBody, _id: id, ...optionalIdentifiers },
+        ]
+      : []),
+  ];
+
+  const methods: Array<'POST' | 'PATCH'> = ['POST', 'PATCH'];
+  let lastError: any;
+
+  for (const method of methods) {
+    for (const body of payloadVariants) {
+      try {
+        return await request<{
+          data: {
+            success: boolean;
+            message: string;
+            customer?: any;
+          };
+        }>('/customers/change-password', {
+          method,
+          body,
+        });
+      } catch (err: any) {
+        lastError = err;
+      }
+    }
+  }
+
+  throw lastError || new Error('Unable to change password right now. Please try again.');
+};
+
+export const changepw = (data: ChangePasswordPayload) => changePassword(data);
+
 
 export const getShops = () => {
   return request<any>('/shops/all', {
@@ -230,5 +343,7 @@ export default {
   verifyPhoneOtp,
   sendEmailOtp,
   verifyEmailOtp,
+  changePassword,
+  changepw,
   getShops,
 };
