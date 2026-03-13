@@ -111,7 +111,7 @@ export default function RegisterPage() {
 
     try {
       // Send OTP to phone number or email (trim input to normalize)
-      const valueToSend = usePhone ? phoneNumber.trim() : email.trim();
+      const valueToSend = usePhone ? phoneNumber.trim() : email.trim().toLowerCase();
       console.log(usePhone);
       console.log(valueToSend);
       console.log("Sending OTP request to:", valueToSend);
@@ -123,7 +123,7 @@ export default function RegisterPage() {
         type: usePhone ? "phone" : "email",
         value: valueToSend,
         name,
-        email: usePhone ? "" : email,
+        email: usePhone ? "" : valueToSend,
         phoneNumber: usePhone ? valueToSend : "",
         password,
       });

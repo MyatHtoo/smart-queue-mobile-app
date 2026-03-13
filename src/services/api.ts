@@ -164,9 +164,12 @@ export type SendEmailOtpResponse = {
 };
 
 export const sendEmailOtp = async (data: { email: string }) => {
+  const normalizedEmail = data.email.trim().toLowerCase();
+  console.log('[API] sendEmailOtp normalized email:', normalizedEmail);
+
   const response = await request<SendEmailOtpResponse>('/customers/send-email-otp', {
     method: 'POST',
-    body: data,
+    body: { email: normalizedEmail },
     skipAuth: true,
   });
 
@@ -286,6 +289,74 @@ export type ChangePasswordPayload = {
   _id?: string;
 };
 
+export type ChangeEmailPayload = {
+  email?: string;
+  newEmail?: string;
+  oldEmail?: string;
+  otp?: string;
+  id?: string;
+  customerId?: string;
+  customer_id?: string;
+  userId?: string;
+  userID?: string;
+  _id?: string;
+};
+
+export const changeEmail = async (data: ChangeEmailPayload) => {
+  const normalizedEmail = (data.newEmail ?? data.email ?? '').trim().toLowerCase();
+  const normalizedOldEmail = (data.oldEmail ?? '').trim().toLowerCase();
+  const id = data.id ?? data.customerId ?? data.customer_id ?? data.userId ?? data.userID ?? data._id;
+
+  if (!normalizedEmail) {
+    throw new Error('Email is required.');
+  }
+
+  const baseBody: ChangeEmailPayload = {
+    email: normalizedOldEmail || normalizedEmail,
+    newEmail: normalizedEmail,
+    ...(normalizedOldEmail ? { oldEmail: normalizedOldEmail } : {}),
+    ...(data.otp ? { otp: data.otp } : {}),
+  };
+
+  const payloadVariants: ChangeEmailPayload[] = [
+    { ...baseBody },
+    ...(id
+      ? [
+          { ...baseBody, id },
+          { ...baseBody, customerId: id },
+          { ...baseBody, customer_id: id },
+          { ...baseBody, userId: id },
+          { ...baseBody, userID: id },
+          { ...baseBody, _id: id },
+        ]
+      : []),
+  ];
+
+  const methods: Array<'POST' | 'PATCH'> = ['POST', 'PATCH'];
+  let lastError: any;
+
+  for (const method of methods) {
+    for (const body of payloadVariants) {
+      try {
+        return await request<{
+          data: {
+            success: boolean;
+            message: string;
+            customer?: any;
+          };
+        }>('/customers/change-email', {
+          method,
+          body,
+        });
+      } catch (err: any) {
+        lastError = err;
+      }
+    }
+  }
+
+  throw lastError || new Error('Unable to change email right now. Please try again.');
+};
+
 export type ChangepwPayload = ChangePasswordPayload;
 
 export const changePassword = async (data: ChangePasswordPayload) => {
@@ -370,6 +441,7 @@ export default {
   verifyPhoneOtp,
   sendEmailOtp,
   verifyEmailOtp,
+  changeEmail,
   changePassword,
   changepw,
   getShops,

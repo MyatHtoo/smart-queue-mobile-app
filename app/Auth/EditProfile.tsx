@@ -2,10 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
 import { useUser } from '../../src/contexts/UserContext';
-import { changePassword, changeUsername, sendPhoneOtp, setAuthToken, verifyPhoneOtp } from '../../src/services/api';
+import {
+  changeEmail,
+  changePassword,
+  changeUsername,
+  sendEmailOtp,
+  sendPhoneOtp,
+  setAuthToken,
+  verifyPhoneOtp,
+} from '../../src/services/api';
 
 type Props = {
   navigation: any;
+  route: any;
 };
 
 const getUserIdFromToken = (jwtToken?: string | null): string => {
@@ -32,7 +41,7 @@ const getUserIdFromToken = (jwtToken?: string | null): string => {
   }
 };
 
-const EditProfileScreen = ({ navigation }: Props) => {
+const EditProfileScreen = ({ navigation, route }: Props) => {
   const { userData, setUserData, token } = useUser();
   const [username, setUsername] = useState(userData.name || '');
   const [email, setEmail] = useState(userData.email || '');
@@ -45,6 +54,10 @@ const EditProfileScreen = ({ navigation }: Props) => {
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpTargetPhone, setOtpTargetPhone] = useState('');
+  const [isOldEmailVerified, setIsOldEmailVerified] = useState(false);
+  const [isNewEmailVerified, setIsNewEmailVerified] = useState(false);
+  const [verifiedOldEmailOtp, setVerifiedOldEmailOtp] = useState('');
+  const [verifiedNewEmailOtp, setVerifiedNewEmailOtp] = useState('');
 
   const resetPhoneVerificationState = () => {
     setPhoneOtp('');
@@ -53,17 +66,60 @@ const EditProfileScreen = ({ navigation }: Props) => {
     setOtpTargetPhone('');
   };
 
+  const resetEmailVerificationState = () => {
+    setIsOldEmailVerified(false);
+    setIsNewEmailVerified(false);
+    setVerifiedOldEmailOtp('');
+    setVerifiedNewEmailOtp('');
+  };
+
   useEffect(() => {
     setUsername(userData.name || '');
     setEmail(userData.email || '');
     setPhoneNumber(userData.phoneNumber || ''); 
     setPassword(userData.password || '');
     resetPhoneVerificationState();
+    resetEmailVerificationState();
   }, [userData]);
+
+  useEffect(() => {
+    const params = route?.params;
+    if (!params?.otpVerified) {
+      return;
+    }
+
+    if (params?.verificationType === 'email') {
+      if (params?.pendingNewEmail) {
+        setEmail(String(params.pendingNewEmail));
+      }
+      const verifiedOtp = String(params?.verifiedOtp || '');
+      if (params?.verificationStep === 'old') {
+        setIsOldEmailVerified(true);
+        setVerifiedOldEmailOtp(verifiedOtp);
+      } else if (params?.verificationStep === 'new') {
+        setIsNewEmailVerified(true);
+        setVerifiedNewEmailOtp(verifiedOtp);
+      }
+    }
+
+    navigation.setParams({
+      otpVerified: undefined,
+      verificationType: undefined,
+      verificationTarget: undefined,
+      verificationStep: undefined,
+      verifiedOtp: undefined,
+      pendingNewEmail: undefined,
+    });
+  }, [route?.params, navigation]);
 
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value);
     resetPhoneVerificationState();
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    resetEmailVerificationState();
   };
 
   const normalizedCurrentPhone = (userData.phoneNumber || '').trim();
@@ -71,6 +127,9 @@ const EditProfileScreen = ({ navigation }: Props) => {
   const phoneChanged = normalizedNewPhone !== normalizedCurrentPhone;
   const usernameChanged = !!(username && username !== userData.name);
   const passwordChanged = !!(password && password !== userData.password);
+  const normalizedCurrentEmail = (userData.email || '').trim().toLowerCase();
+  const normalizedNewEmail = (email || '').trim().toLowerCase();
+  const emailChanged = !!(userData.email && normalizedNewEmail && normalizedNewEmail !== normalizedCurrentEmail);
   const isOtpRequiredError = (msg: string) =>
     /phone\s*number.*not\s*verified.*otp/i.test(msg) ||
     (msg.toLowerCase().includes('otp') && msg.toLowerCase().includes('not verified'));
@@ -165,6 +224,42 @@ const EditProfileScreen = ({ navigation }: Props) => {
     }
   };
 
+  const startEmailOtpStep = async (
+    targetEmail: string,
+    step: 'old' | 'new',
+    pendingNewEmail: string
+  ) => {
+    if (!targetEmail) {
+      Alert.alert('Verification Required', 'Email is required for OTP verification.');
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      await sendEmailOtp({ email: targetEmail });
+      navigation.navigate('OTP', {
+        flow: 'verify-only',
+        verificationType: 'email',
+        verificationStep: step,
+        type: 'email',
+        value: targetEmail,
+        email: targetEmail,
+        returnTo: 'EditProfile',
+        pendingNewEmail,
+      });
+      Alert.alert(
+        'OTP Required',
+        step === 'old'
+          ? 'Verify OTP sent to your current email, then press Update again.'
+          : 'Verify OTP sent to your new email, then press Update again.'
+      );
+    } catch (sendErr: any) {
+      Alert.alert('OTP Error', getErrorMessage(sendErr, 'Failed to send email OTP. Please try again.'));
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
 
   const handleUpdate = async () => {
     try {
@@ -225,6 +320,41 @@ const EditProfileScreen = ({ navigation }: Props) => {
             Alert.alert('Error', retryMessage || 'Failed to update username');
             return;
           }
+        }
+      }
+
+      if (emailChanged) {
+        if (!isOldEmailVerified) {
+          await startEmailOtpStep(normalizedCurrentEmail, 'old', normalizedNewEmail);
+          return;
+        }
+
+        if (!isNewEmailVerified) {
+          await startEmailOtpStep(normalizedNewEmail, 'new', normalizedNewEmail);
+          return;
+        }
+
+        const emailPayload: any = {
+          email: normalizedCurrentEmail || normalizedNewEmail,
+          newEmail: normalizedNewEmail,
+          oldEmail: normalizedCurrentEmail,
+          otp: verifiedNewEmailOtp || verifiedOldEmailOtp,
+        };
+
+        if (resolvedUserId) {
+          emailPayload.id = resolvedUserId;
+          emailPayload.customerId = resolvedUserId;
+          emailPayload.customer_id = resolvedUserId;
+          emailPayload.userId = resolvedUserId;
+          emailPayload.userID = resolvedUserId;
+          emailPayload._id = resolvedUserId;
+        }
+
+        const emailResp: any = await changeEmail(emailPayload);
+        const { success: emailSuccess, message: emailMessage } = isApiSuccess(emailResp);
+        if (!emailSuccess) {
+          Alert.alert('Error', emailMessage || 'Failed to update email');
+          return;
         }
       }
 
@@ -362,15 +492,25 @@ const EditProfileScreen = ({ navigation }: Props) => {
               <TextInput
                 mode="outlined"
                 placeholder="Enter your email"
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 value={email}
-                editable={false}
+                editable={true}
                 keyboardType="email-address"
-                style={[styles.input, styles.disabledInput]}
-                textColor="#666"
+                style={styles.input}
+                textColor="#000"
                 outlineColor="#E0E0E0"
-                activeOutlineColor="#E0E0E0"
+                activeOutlineColor="#1A80A4"
               />
+
+              {emailChanged ? (
+                <Text style={styles.helperText}>
+                  {!isOldEmailVerified
+                    ? 'Press Update to verify OTP from your current email.'
+                    : !isNewEmailVerified
+                      ? 'Current email verified. Press Update to verify OTP from your new email.'
+                      : 'Email OTP verification completed. Press Update to complete email change.'}
+                </Text>
+              ) : null}
             </>
           ) : null}
 

@@ -29,7 +29,19 @@ type Props = {
 
 export default function OTPScreen({ navigation, route }: Props) {
   const { setUserData, setToken } = useUser();
-  const { name, email, phoneNumber, password, type, value } = route.params;
+  const {
+    name = '',
+    email = '',
+    phoneNumber = '',
+    password = '',
+    type = 'email',
+    value = '',
+    flow = 'register',
+    returnTo = 'EditProfile',
+    verificationType,
+    verificationStep,
+    pendingNewEmail,
+  } = route.params || {};
   const isPhone = type === 'phone';
   // console.log('ph',phoneNumber,name,email,password)
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -94,6 +106,28 @@ export default function OTPScreen({ navigation, route }: Props) {
         return;
       }
 
+      if (flow === 'verify-only') {
+        const verificationTarget = isPhone
+          ? String(phoneNumber || value).trim()
+          : String(email || value).trim().toLowerCase();
+
+        Alert.alert('Success', 'OTP verified successfully.', [
+          {
+            text: 'OK',
+            onPress: () =>
+              navigation.navigate(returnTo, {
+                otpVerified: true,
+                verificationType: verificationType || (isPhone ? 'phone' : 'email'),
+                verificationTarget,
+                verificationStep,
+                verifiedOtp: code,
+                pendingNewEmail,
+              }),
+          },
+        ]);
+        return;
+      }
+
       const regRes: any = await registerCustomer({
         name,
         email: isPhone ? email : (email || value),
@@ -146,7 +180,7 @@ export default function OTPScreen({ navigation, route }: Props) {
       if (isPhone) {
         resp = await sendPhoneOtp({ phoneNumber: phoneNumber || value });
       } else {
-        resp = await sendEmailOtp({ email: email || value });
+        resp = await sendEmailOtp({ email: (email || value || '').trim().toLowerCase() });
       }
       console.log(resp);
       setTimer(60);
@@ -232,7 +266,7 @@ export default function OTPScreen({ navigation, route }: Props) {
             ]}
           >
             <Text style={styles.verifyButtonText}>
-              {loading ? 'Verifying...' : 'Verify & Create Account'}
+              {loading ? 'Verifying...' : flow === 'verify-only' ? 'Verify OTP' : 'Verify & Create Account'}
             </Text>
           </TouchableOpacity>
         </View>
