@@ -9,7 +9,7 @@ type Props = {
 };
 
 const AccountView = ({ navigation, route }: Props) => {
-  const { userData, setUserData } = useUser();
+  const { userData, setUserData, clearToken } = useUser();
     const [username, setUsername] = useState(userData.name || '');
     const [email, setEmail] = useState(userData.email || '');
     const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '');
@@ -51,9 +51,22 @@ const AccountView = ({ navigation, route }: Props) => {
   };
 
   // When "Logout" is pressed - go back to login screen
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log('Logout pressed');
-    navigation.navigate('Login');
+    await clearToken();
+    setUserData({
+      name: '',
+      email: '',
+      phoneNumber: '',
+      profileImage: '',
+      password: '',
+      token: '',
+      id: '',
+    });
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
   };
 
   const handleSettings = () => {

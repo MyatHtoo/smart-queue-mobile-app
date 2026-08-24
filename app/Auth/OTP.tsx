@@ -169,6 +169,14 @@ export default function OTPScreen({ navigation, route }: Props) {
         name: customer?.name || name,
         email: customer?.email || (isPhone ? email : (email || value)),
         phoneNumber: customer?.phoneNumber || (isPhone ? (phoneNumber || value) : (phoneNumber || '')),
+        profileImage:
+          customer?.profileImage ||
+          customer?.profile_image ||
+          customer?.avatar ||
+          customer?.avatarUrl ||
+          customer?.avatarURL ||
+          customer?.image ||
+          '',
         password,
         token: token || '',
         id: customer?._id || customer?.id || '',

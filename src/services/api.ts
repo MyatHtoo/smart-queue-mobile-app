@@ -503,7 +503,7 @@ export const changeEmail = async (data: ChangeEmailPayload) => {
       : []),
   ];
 
-  const methods: Array<'POST' | 'PATCH' | 'PUT'> = ['POST', 'PATCH', 'PUT'];
+  const methods: Array<'PATCH' | 'POST'> = ['PATCH', 'POST'];
   let lastError: any;
 
   for (const method of methods) {

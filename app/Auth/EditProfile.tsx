@@ -13,6 +13,7 @@ import {
   sendPhoneOtp,
   setAuthToken,
 } from '../../src/services/api';
+import { saveProfileImageForAccount } from '../../src/utils/ProfileImageStore';
 
 type Props = {
   navigation: any;
@@ -137,72 +138,13 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         setEmail(String(params.pendingNewEmail));
       }
       const verifiedOtp = String(params?.verifiedOtp || '');
-      if (params?.verificationStep === 'old') {
-        setIsOldEmailVerified(true);
-        setVerifiedOldEmailOtp(verifiedOtp);
-        navigation.setParams({
-          emailOldVerified: true,
-          oldEmailVerifiedOtp: verifiedOtp,
-          pendingNewEmail: String(params?.pendingNewEmail || '').trim().toLowerCase(),
-        });
-
-        const nextEmail = String(params?.pendingNewEmail || '').trim().toLowerCase();
-        if (nextEmail && newEmailOtpSentRef.current !== nextEmail) {
-          newEmailOtpSentRef.current = nextEmail;
-          startEmailOtpStep(nextEmail, 'new', nextEmail);
-        }
-      } else if (params?.verificationStep === 'new') {
+      if (!params?.verificationStep || params?.verificationStep === 'new') {
         setIsNewEmailVerified(true);
         setVerifiedNewEmailOtp(verifiedOtp);
-        if (params?.oldEmailVerifiedOtp) {
-          setVerifiedOldEmailOtp(String(params.oldEmailVerifiedOtp));
-          navigation.setParams({
-            emailOldVerified: true,
-            oldEmailVerifiedOtp: String(params.oldEmailVerifiedOtp),
-          });
-        }
         navigation.setParams({
           emailNewVerified: true,
           newEmailVerifiedOtp: verifiedOtp,
         });
-
-        const applyAfterOtpVerify = async () => {
-          const activeToken = token || userData.token || null;
-          const resolvedUserId = userData.id || getUserIdFromToken(activeToken);
-          const oldOtp = String(params?.oldEmailVerifiedOtp || route?.params?.oldEmailVerifiedOtp || verifiedOldEmailOtp || '').trim();
-          const newOtp = String(verifiedOtp || '').trim();
-
-          if (!oldOtp || !newOtp) {
-            Alert.alert('Error', 'Email OTP verification data is incomplete. Please try again.');
-            return;
-          }
-
-          try {
-            await applyEmailChange(resolvedUserId, activeToken, oldOtp, newOtp);
-
-            setUserData({
-              ...userData,
-              email: String(params?.pendingNewEmail || email),
-              token: userData.token || token || '',
-              id: resolvedUserId || userData.id || '',
-            });
-
-            navigation.setParams({
-              emailOldVerified: undefined,
-              emailNewVerified: undefined,
-              oldEmailVerifiedOtp: undefined,
-              newEmailVerifiedOtp: undefined,
-              pendingNewEmail: undefined,
-            });
-
-            Alert.alert('Success', 'Updated successfully');
-          } catch (err: any) {
-            console.error('Apply email change after OTP failed:', err);
-            Alert.alert('Error', getErrorMessage(err, 'Failed to update email'));
-          }
-        };
-
-        applyAfterOtpVerify();
       }
     }
 
@@ -575,13 +517,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       }
 
       if (emailChanged) {
-        const oldVerified = isOldEmailVerified || !!route?.params?.emailOldVerified;
         const newVerified = isNewEmailVerified || !!route?.params?.emailNewVerified;
-
-        if (!oldVerified) {
-          await startEmailOtpStep(normalizedCurrentEmail, 'old', normalizedNewEmail);
-          return;
-        }
 
         if (!newVerified) {
           if (newEmailOtpSentRef.current !== normalizedNewEmail) {
@@ -647,6 +583,15 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       }
 
       // Update local context regardless
+      await saveProfileImageForAccount(
+        {
+          id: resolvedUserId || userData.id || '',
+          email: userData.email ? email : userData.email,
+          phoneNumber: userData.phoneNumber ? phoneNumber : userData.phoneNumber,
+        },
+        nextProfileImage
+      );
+
       setUserData({
         name: username,
         email: userData.email ? email : userData.email,
@@ -747,11 +692,9 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
 
               {emailChanged ? (
                 <Text style={styles.helperText}>
-                  {!isOldEmailVerified
-                    ? 'Press Update to verify OTP from your current email.'
-                    : !isNewEmailVerified
-                      ? 'Current email verified. Press Update to verify OTP from your new email.'
-                      : 'Email OTP verification completed. Press Update to complete email change.'}
+                  {!isNewEmailVerified
+                    ? 'Press Update to verify OTP from your new email.'
+                    : 'Email OTP verification completed. Press Update to complete email change.'}
                 </Text>
               ) : null}
             </>

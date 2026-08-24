@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleSignInButton from "../../components/Google";
 import { useUser } from "../../src/contexts/UserContext";
 import { loginCustomer, setAuthToken } from "../../src/services/api";
+import { getProfileImageForAccount, saveProfileImageForAccount } from '../../src/utils/ProfileImageStore';
 
 type LoginPayload = {
   email?: string;
@@ -56,6 +57,15 @@ const extractUserId = (response: any, user: any) =>
   response?.data?._id ||
   "";
 
+const extractProfileImage = (user: any) =>
+  user?.profileImage ||
+  user?.profile_image ||
+  user?.avatar ||
+  user?.avatarUrl ||
+  user?.avatarURL ||
+  user?.image ||
+  "";
+
 export default function LoginPage() {
   const navigation = useNavigation();
   const { userData, setUserData, setToken } = useUser();
@@ -83,6 +93,17 @@ export default function LoginPage() {
 
       const token = extractToken(response);
       const user = extractUser(response);
+      const resolvedId = extractUserId(response, user);
+      const resolvedEmail = user.email || (isPhone ? "" : payload.email) || "";
+      const resolvedPhoneNumber = user.phoneNumber || (isPhone ? payload.phoneNumber : user.phoneNumber || "") || "";
+      const imageFromApi = extractProfileImage(user);
+      const cachedImage = imageFromApi
+        ? imageFromApi
+        : await getProfileImageForAccount({
+            id: resolvedId,
+            email: resolvedEmail,
+            phoneNumber: resolvedPhoneNumber,
+          });
 
       const respMessage = response?.message ?? response?.data?.message;
       if (respMessage && !token) {
@@ -101,12 +122,24 @@ export default function LoginPage() {
 
       setUserData({
         name: user.username || user.name || (isPhone ? user.phoneNumber : user.email) || "",
-        email: user.email || (isPhone ? "" : payload.email),
-        phoneNumber: user.phoneNumber || (isPhone ? payload.phoneNumber : user.phoneNumber || ""),
+        email: resolvedEmail,
+        phoneNumber: resolvedPhoneNumber,
+        profileImage: cachedImage,
         password: payload.password,
         token: token || user.token || '',
-        id: extractUserId(response, user),
+        id: resolvedId,
       });
+
+      if (imageFromApi) {
+        await saveProfileImageForAccount(
+          {
+            id: resolvedId,
+            email: resolvedEmail,
+            phoneNumber: resolvedPhoneNumber,
+          },
+          imageFromApi
+        );
+      }
 
       // set api auth token for subsequent requests
       if (token) setAuthToken(token);
@@ -144,6 +177,7 @@ export default function LoginPage() {
       name: "Google User",
       email: "user@gmail.com",
       phoneNumber: userData.phoneNumber || '',
+      profileImage: '',
       password: "",
     });
     (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
