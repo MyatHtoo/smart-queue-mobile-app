@@ -107,18 +107,14 @@ export default function RegisterPage() {
       return;
     }
     setErrors({});
-    console.log("Create account with:", name, usePhone ? phoneNumber : email, password);
 
     try {
       // Send OTP to phone number or email (trim input to normalize)
       const valueToSend = usePhone ? phoneNumber.trim() : email.trim().toLowerCase();
-      console.log(usePhone);
-      console.log(valueToSend);
-      console.log("Sending OTP request to:", valueToSend);
       const otpResponse = usePhone
         ? await sendPhoneOtp({ phoneNumber: valueToSend })
         : await sendEmailOtp({ email: valueToSend });
-      console.log(otpResponse);
+      console.log("OTP request sent", { type: usePhone ? "phone" : "email" }, otpResponse);
       (navigation.navigate as any)("OTP", {
         type: usePhone ? "phone" : "email",
         value: valueToSend,

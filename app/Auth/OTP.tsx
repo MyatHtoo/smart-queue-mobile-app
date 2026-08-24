@@ -38,9 +38,11 @@ export default function OTPScreen({ navigation, route }: Props) {
     value = '',
     flow = 'register',
     returnTo = 'EditProfile',
+    returnToKey,
     verificationType,
     verificationStep,
     pendingNewEmail,
+    oldEmailVerifiedOtp,
   } = route.params || {};
   const isPhone = type === 'phone';
   // console.log('ph',phoneNumber,name,email,password)
@@ -114,15 +116,34 @@ export default function OTPScreen({ navigation, route }: Props) {
         Alert.alert('Success', 'OTP verified successfully.', [
           {
             text: 'OK',
-            onPress: () =>
-              navigation.navigate(returnTo, {
+            onPress: () => {
+              const returnParams = {
                 otpVerified: true,
                 verificationType: verificationType || (isPhone ? 'phone' : 'email'),
                 verificationTarget,
                 verificationStep,
                 verifiedOtp: code,
                 pendingNewEmail,
-              }),
+                oldEmailVerifiedOtp,
+                otpResultAt: Date.now(),
+              };
+
+              if (returnToKey) {
+                navigation.navigate({
+                  key: returnToKey,
+                  name: returnTo,
+                  params: returnParams,
+                  merge: true,
+                } as any);
+                return;
+              }
+
+              navigation.navigate({
+                name: returnTo,
+                params: returnParams,
+                merge: true,
+              } as any);
+            },
           },
         ]);
         return;

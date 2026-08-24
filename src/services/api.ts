@@ -46,7 +46,7 @@ async function request<T>(
   }
 
   const url = `${API_URL}${endpoint}`;
-  console.log(`[API] ${method} ${url}`, body ?? '');
+  console.log(`[API] ${method} ${url}`);
 
   try {
     const response = await fetch(url, config);
@@ -110,12 +110,22 @@ export const loginCustomer = (data: LoginCustomerPayload) => {
 };
 
 export type SendPhoneOtpResponse = {
-  data: {
+  data?: {
     success: boolean;
     message: string;
     otp?: string;
+    otpCode?: string;
+    verificationCode?: string;
+    data?: {
+      otp?: string;
+      otpCode?: string;
+      verificationCode?: string;
+    };
   };
   otp?: string;
+  otpCode?: string;
+  verificationCode?: string;
+  code?: string;
 };
 
 export const sendPhoneOtp = async (data: { phoneNumber: string }) => {
@@ -125,11 +135,21 @@ export const sendPhoneOtp = async (data: { phoneNumber: string }) => {
     skipAuth: true,
   });
 
-  const otp = response?.data?.otp ?? response?.otp;
+  const otp =
+    response?.data?.otp ??
+    response?.data?.otpCode ??
+    response?.data?.verificationCode ??
+    response?.data?.data?.otp ??
+    response?.data?.data?.otpCode ??
+    response?.data?.data?.verificationCode ??
+    response?.otp ??
+    response?.otpCode ??
+    response?.verificationCode ??
+    response?.code;
   if (otp) {
     console.log('[API] Phone OTP (dev):', otp);
   } else {
-    console.log('[API] Phone OTP not returned by backend.');
+    console.log('[API] Phone OTP response (no code returned):', JSON.stringify(response));
   }
 
   return response;
@@ -291,9 +311,18 @@ export type ChangePasswordPayload = {
 
 export type ChangeEmailPayload = {
   email?: string;
+  currentEmail?: string;
   newEmail?: string;
   oldEmail?: string;
   otp?: string;
+  oldEmailOtp?: string;
+  newEmailOtp?: string;
+  old_email?: string;
+  new_email?: string;
+  old_email_otp?: string;
+  new_email_otp?: string;
+  oldOtp?: string;
+  newOtp?: string;
   id?: string;
   customerId?: string;
   customer_id?: string;
@@ -302,24 +331,64 @@ export type ChangeEmailPayload = {
   _id?: string;
 };
 
-export const changeEmail = async (data: ChangeEmailPayload) => {
-  const normalizedEmail = (data.newEmail ?? data.email ?? '').trim().toLowerCase();
-  const normalizedOldEmail = (data.oldEmail ?? '').trim().toLowerCase();
+export type ChangePhoneNumberPayload = {
+  phoneNumber: string;
+  newPhoneNumber?: string;
+  currentPhoneNumber?: string;
+  oldPhoneNumber?: string;
+  phone?: string;
+  newPhone?: string;
+  currentPhone?: string;
+  oldPhone?: string;
+  otp: string;
+  id?: string;
+  customerId?: string;
+  customer_id?: string;
+  userId?: string;
+  userID?: string;
+  _id?: string;
+};
+
+export const changePhoneNumber = async (data: ChangePhoneNumberPayload) => {
+  const newPhoneNumber = (data.newPhoneNumber ?? data.phoneNumber ?? data.newPhone ?? data.phone ?? '').trim();
+  const currentPhoneNumber = (data.currentPhoneNumber ?? data.oldPhoneNumber ?? data.currentPhone ?? data.oldPhone ?? '').trim();
+  const otp = (data.otp ?? '').trim();
   const id = data.id ?? data.customerId ?? data.customer_id ?? data.userId ?? data.userID ?? data._id;
 
-  if (!normalizedEmail) {
-    throw new Error('Email is required.');
+  if (!newPhoneNumber) {
+    throw new Error('New phone number is required.');
+  }
+  if (!otp) {
+    throw new Error('OTP is required.');
   }
 
-  const baseBody: ChangeEmailPayload = {
-    email: normalizedOldEmail || normalizedEmail,
-    newEmail: normalizedEmail,
-    ...(normalizedOldEmail ? { oldEmail: normalizedOldEmail } : {}),
-    ...(data.otp ? { otp: data.otp } : {}),
+  const baseBody: ChangePhoneNumberPayload = {
+    ...data,
+    phoneNumber: newPhoneNumber,
+    newPhoneNumber,
+    ...(currentPhoneNumber ? { currentPhoneNumber } : {}),
+    ...(currentPhoneNumber ? { oldPhoneNumber: currentPhoneNumber } : {}),
+    phone: newPhoneNumber,
+    newPhone: newPhoneNumber,
+    ...(currentPhoneNumber ? { currentPhone: currentPhoneNumber } : {}),
+    ...(currentPhoneNumber ? { oldPhone: currentPhoneNumber } : {}),
+    otp,
   };
 
-  const payloadVariants: ChangeEmailPayload[] = [
+  const payloadVariants: ChangePhoneNumberPayload[] = [
     { ...baseBody },
+    {
+      phoneNumber: newPhoneNumber,
+      newPhoneNumber,
+      ...(currentPhoneNumber ? { currentPhoneNumber } : {}),
+      otp,
+    },
+    {
+      phone: newPhoneNumber,
+      newPhone: newPhoneNumber,
+      ...(currentPhoneNumber ? { oldPhone: currentPhoneNumber } : {}),
+      otp,
+    } as ChangePhoneNumberPayload,
     ...(id
       ? [
           { ...baseBody, id },
@@ -332,22 +401,123 @@ export const changeEmail = async (data: ChangeEmailPayload) => {
       : []),
   ];
 
-  const methods: Array<'POST' | 'PATCH'> = ['POST', 'PATCH'];
+  const endpoints = [
+    '/customers/change-phone-number'
+  ];
+  const methods: Array<'PATCH' > = ['PATCH'];
+
+  let lastError: any;
+
+  for (const endpoint of endpoints) {
+    for (const method of methods) {
+      for (const body of payloadVariants) {
+        try {
+          const resp = await request<{
+            success?: boolean;
+            message?: string;
+            data?: {
+              success?: boolean;
+              message?: string;
+              customer?: any;
+            };
+          }>(endpoint, {
+            method,
+            body,
+          });
+
+          const message = String(resp?.data?.message ?? resp?.message ?? '');
+          const successFlag = resp?.data?.success ?? resp?.success;
+          if (successFlag === true || /phone\s*(updated|changed|success)/i.test(message)) {
+            return resp;
+          }
+
+          lastError = new Error(message || 'Phone change was not confirmed by backend.');
+        } catch (err: any) {
+          lastError = err;
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error('Unable to change phone number right now. Please try again.');
+};
+
+export const changeEmail = async (data: ChangeEmailPayload) => {
+  const normalizedEmail = (data.newEmail ?? data.email ?? '').trim().toLowerCase();
+  const normalizedOldEmail = (data.oldEmail ?? '').trim().toLowerCase();
+  const otp = (data.otp ?? '').trim();
+  const oldEmailOtp = (data.oldEmailOtp ?? otp).trim();
+  const newEmailOtp = (data.newEmailOtp ?? otp).trim();
+  const id = data.id ?? data.customerId ?? data.customer_id ?? data.userId ?? data.userID ?? data._id;
+
+  if (!normalizedEmail) {
+    throw new Error('Email is required.');
+  }
+
+  const baseBody: ChangeEmailPayload = {
+    email: normalizedOldEmail || normalizedEmail,
+    ...(normalizedOldEmail ? { currentEmail: normalizedOldEmail } : {}),
+    newEmail: normalizedEmail,
+    ...(normalizedOldEmail ? { oldEmail: normalizedOldEmail } : {}),
+    ...(normalizedOldEmail ? { old_email: normalizedOldEmail } : {}),
+    ...(otp ? { otp } : {}),
+    ...(oldEmailOtp ? { oldEmailOtp } : {}),
+    ...(newEmailOtp ? { newEmailOtp } : {}),
+    ...(oldEmailOtp ? { old_email_otp: oldEmailOtp } : {}),
+    ...(newEmailOtp ? { new_email_otp: newEmailOtp } : {}),
+    ...(oldEmailOtp ? { oldOtp: oldEmailOtp } : {}),
+    ...(newEmailOtp ? { newOtp: newEmailOtp } : {}),
+    ...(normalizedEmail ? { new_email: normalizedEmail } : {}),
+  };
+
+  const payloadVariants: ChangeEmailPayload[] = [
+    { ...baseBody },
+    {
+      email: normalizedEmail,
+      ...(normalizedOldEmail ? { currentEmail: normalizedOldEmail } : {}),
+      ...(normalizedOldEmail ? { oldEmail: normalizedOldEmail } : {}),
+      newEmail: normalizedEmail,
+      ...(oldEmailOtp ? { oldEmailOtp } : {}),
+      ...(newEmailOtp ? { newEmailOtp } : {}),
+      ...(otp ? { otp } : {}),
+    },
+    ...(id
+      ? [
+          { ...baseBody, id },
+          { ...baseBody, customerId: id },
+          { ...baseBody, customer_id: id },
+          { ...baseBody, userId: id },
+          { ...baseBody, userID: id },
+          { ...baseBody, _id: id },
+        ]
+      : []),
+  ];
+
+  const methods: Array<'POST' | 'PATCH' | 'PUT'> = ['POST', 'PATCH', 'PUT'];
   let lastError: any;
 
   for (const method of methods) {
     for (const body of payloadVariants) {
       try {
-        return await request<{
+        const resp = await request<{
+          success?: boolean;
+          message?: string;
           data: {
-            success: boolean;
-            message: string;
+            success?: boolean;
+            message?: string;
             customer?: any;
           };
         }>('/customers/change-email', {
           method,
           body,
         });
+        const message = String(resp?.data?.message ?? resp?.message ?? '');
+        const successFlag = resp?.data?.success ?? resp?.success;
+        const strictSuccess = successFlag === true || /email\s*(updated|changed|success)/i.test(message);
+        if (strictSuccess) {
+          return resp;
+        }
+        lastError = new Error(message || 'Email change was not confirmed by backend.');
       } catch (err: any) {
         lastError = err;
       }

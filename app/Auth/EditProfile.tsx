@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
 import { useUser } from '../../src/contexts/UserContext';
 import {
   changeEmail,
   changePassword,
+  changePhoneNumber,
   changeUsername,
   sendEmailOtp,
   sendPhoneOtp,
   setAuthToken,
-  verifyPhoneOtp,
 } from '../../src/services/api';
 
 type Props = {
@@ -49,21 +49,19 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   const [password, setPassword] = useState(userData.password || '');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdated, setIsUpdated] = useState(false);
-  const [phoneOtp, setPhoneOtp] = useState('');
-  const [isPhoneOtpSent, setIsPhoneOtpSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [verifiedPhoneOtp, setVerifiedPhoneOtp] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
-  const [otpTargetPhone, setOtpTargetPhone] = useState('');
   const [isOldEmailVerified, setIsOldEmailVerified] = useState(false);
   const [isNewEmailVerified, setIsNewEmailVerified] = useState(false);
   const [verifiedOldEmailOtp, setVerifiedOldEmailOtp] = useState('');
   const [verifiedNewEmailOtp, setVerifiedNewEmailOtp] = useState('');
+  const lastOtpResultAtRef = useRef<number>(0);
+  const newEmailOtpSentRef = useRef<string>('');
 
   const resetPhoneVerificationState = () => {
-    setPhoneOtp('');
-    setIsPhoneOtpSent(false);
     setIsPhoneVerified(false);
-    setOtpTargetPhone('');
+    setVerifiedPhoneOtp('');
   };
 
   const resetEmailVerificationState = () => {
@@ -71,6 +69,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     setIsNewEmailVerified(false);
     setVerifiedOldEmailOtp('');
     setVerifiedNewEmailOtp('');
+    newEmailOtpSentRef.current = '';
   };
 
   useEffect(() => {
@@ -84,11 +83,50 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
 
   useEffect(() => {
     const params = route?.params;
+
+    if (params?.emailOldVerified) {
+      setIsOldEmailVerified(true);
+    }
+    if (params?.emailNewVerified) {
+      setIsNewEmailVerified(true);
+    }
+    if (params?.oldEmailVerifiedOtp) {
+      setVerifiedOldEmailOtp(String(params.oldEmailVerifiedOtp));
+    }
+    if (params?.newEmailVerifiedOtp) {
+      setVerifiedNewEmailOtp(String(params.newEmailVerifiedOtp));
+    }
+    if (params?.pendingNewEmail) {
+      setEmail(String(params.pendingNewEmail));
+    }
+
     if (!params?.otpVerified) {
       return;
     }
 
-    if (params?.verificationType === 'email') {
+    const otpResultAt = Number(params?.otpResultAt || 0);
+    if (otpResultAt && otpResultAt <= lastOtpResultAtRef.current) {
+      return;
+    }
+    if (otpResultAt) {
+      lastOtpResultAtRef.current = otpResultAt;
+    }
+
+    if (params?.verificationType === 'phone') {
+      const verifiedPhone = String(params?.verificationTarget || '').trim();
+      const verifiedOtp = String(params?.verifiedOtp || '').trim();
+      if (verifiedPhone) {
+        // Keep local input aligned with the verified target in case screen state was reset.
+        setPhoneNumber(verifiedPhone);
+        setIsPhoneVerified(true);
+        setVerifiedPhoneOtp(verifiedOtp);
+
+        const hasRealPhoneChange = verifiedPhone !== normalizedCurrentPhone;
+        if (hasRealPhoneChange && verifiedOtp) {
+          applyPhoneChangeAfterOtp(verifiedPhone, verifiedOtp);
+        }
+      }
+    } else if (params?.verificationType === 'email') {
       if (params?.pendingNewEmail) {
         setEmail(String(params.pendingNewEmail));
       }
@@ -96,9 +134,69 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       if (params?.verificationStep === 'old') {
         setIsOldEmailVerified(true);
         setVerifiedOldEmailOtp(verifiedOtp);
+        navigation.setParams({
+          emailOldVerified: true,
+          oldEmailVerifiedOtp: verifiedOtp,
+          pendingNewEmail: String(params?.pendingNewEmail || '').trim().toLowerCase(),
+        });
+
+        const nextEmail = String(params?.pendingNewEmail || '').trim().toLowerCase();
+        if (nextEmail && newEmailOtpSentRef.current !== nextEmail) {
+          newEmailOtpSentRef.current = nextEmail;
+          startEmailOtpStep(nextEmail, 'new', nextEmail);
+        }
       } else if (params?.verificationStep === 'new') {
         setIsNewEmailVerified(true);
         setVerifiedNewEmailOtp(verifiedOtp);
+        if (params?.oldEmailVerifiedOtp) {
+          setVerifiedOldEmailOtp(String(params.oldEmailVerifiedOtp));
+          navigation.setParams({
+            emailOldVerified: true,
+            oldEmailVerifiedOtp: String(params.oldEmailVerifiedOtp),
+          });
+        }
+        navigation.setParams({
+          emailNewVerified: true,
+          newEmailVerifiedOtp: verifiedOtp,
+        });
+
+        const applyAfterOtpVerify = async () => {
+          const activeToken = token || userData.token || null;
+          const resolvedUserId = userData.id || getUserIdFromToken(activeToken);
+          const oldOtp = String(params?.oldEmailVerifiedOtp || route?.params?.oldEmailVerifiedOtp || verifiedOldEmailOtp || '').trim();
+          const newOtp = String(verifiedOtp || '').trim();
+
+          if (!oldOtp || !newOtp) {
+            Alert.alert('Error', 'Email OTP verification data is incomplete. Please try again.');
+            return;
+          }
+
+          try {
+            await applyEmailChange(resolvedUserId, activeToken, oldOtp, newOtp);
+
+            setUserData({
+              ...userData,
+              email: String(params?.pendingNewEmail || email),
+              token: userData.token || token || '',
+              id: resolvedUserId || userData.id || '',
+            });
+
+            navigation.setParams({
+              emailOldVerified: undefined,
+              emailNewVerified: undefined,
+              oldEmailVerifiedOtp: undefined,
+              newEmailVerifiedOtp: undefined,
+              pendingNewEmail: undefined,
+            });
+
+            Alert.alert('Success', 'Updated successfully');
+          } catch (err: any) {
+            console.error('Apply email change after OTP failed:', err);
+            Alert.alert('Error', getErrorMessage(err, 'Failed to update email'));
+          }
+        };
+
+        applyAfterOtpVerify();
       }
     }
 
@@ -108,9 +206,10 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       verificationTarget: undefined,
       verificationStep: undefined,
       verifiedOtp: undefined,
-      pendingNewEmail: undefined,
+      pendingNewEmail: params?.pendingNewEmail,
+      otpResultAt: undefined,
     });
-  }, [route?.params, navigation]);
+  }, [route?.params, navigation, token, userData, email, phoneNumber, verifiedOldEmailOtp]);
 
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value);
@@ -120,6 +219,13 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   const handleEmailChange = (value: string) => {
     setEmail(value);
     resetEmailVerificationState();
+    navigation.setParams({
+      emailOldVerified: undefined,
+      emailNewVerified: undefined,
+      oldEmailVerifiedOtp: undefined,
+      newEmailVerifiedOtp: undefined,
+      pendingNewEmail: undefined,
+    });
   };
 
   const normalizedCurrentPhone = (userData.phoneNumber || '').trim();
@@ -138,12 +244,58 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     String(error?.message || error?.response?.data?.message || error || fallback);
 
   const isApiSuccess = (resp: any) => {
-    const success = resp?.data?.success ?? false;
+    const success = resp?.data?.success ?? resp?.success ?? false;
     const message = resp?.data?.message ?? resp?.message ?? '';
     return {
       success: success || /success/i.test(String(message)),
       message,
     };
+  };
+
+  const applyPhoneChangeAfterOtp = async (newPhone: string, otp: string) => {
+    const activeToken = token || userData.token || null;
+    const resolvedUserId = userData.id || getUserIdFromToken(activeToken);
+    const phonePayload: any = {
+      phoneNumber: newPhone,
+      newPhoneNumber: newPhone,
+      currentPhoneNumber: normalizedCurrentPhone,
+      otp,
+    };
+
+    if (resolvedUserId) {
+      phonePayload.id = resolvedUserId;
+      phonePayload.customerId = resolvedUserId;
+      phonePayload.customer_id = resolvedUserId;
+      phonePayload.userId = resolvedUserId;
+      phonePayload.userID = resolvedUserId;
+      phonePayload._id = resolvedUserId;
+    }
+
+    try {
+      if (activeToken) setAuthToken(activeToken);
+      const response: any = await changePhoneNumber(phonePayload);
+      console.log('Change phone response:', response);
+      const { success, message } = isApiSuccess(response);
+      if (!success) {
+        Alert.alert('Error', message || 'Failed to update phone number');
+        return;
+      }
+
+      setUserData({
+        ...userData,
+        phoneNumber: newPhone,
+        token: userData.token || token || '',
+        id: resolvedUserId || userData.id || '',
+      });
+      Alert.alert('Success', 'Phone number updated successfully.', [
+        {
+          text: 'OK',
+          onPress: () => navigation.navigate('AccountView', { phoneNumber: newPhone }),
+        },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to update phone number'));
+    }
   };
 
   const buildUsernamePayload = (resolvedUserId: string) => {
@@ -172,56 +324,30 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     return payload;
   };
 
-  const ensurePhoneVerification = async (
-    targetPhone: string,
-    sentMessage: string
-  ): Promise<boolean> => {
+  const ensurePhoneVerification = async (targetPhone: string): Promise<boolean> => {
     if (!targetPhone) {
       Alert.alert('Verification Required', 'Phone number is required for OTP verification.');
       return false;
     }
 
-    if (!isPhoneOtpSent || otpTargetPhone !== targetPhone) {
-      setOtpLoading(true);
-      try {
-        await sendPhoneOtp({ phoneNumber: targetPhone });
-        setIsPhoneOtpSent(true);
-        setIsPhoneVerified(false);
-        setOtpTargetPhone(targetPhone);
-        Alert.alert('OTP Sent', sentMessage);
-      } catch (sendErr: any) {
-        Alert.alert('OTP Error', getErrorMessage(sendErr, 'Failed to send OTP. Please try again.'));
-      } finally {
-        setOtpLoading(false);
-      }
-      return false;
-    }
-
-    if (phoneOtp.trim().length !== 6) {
-      Alert.alert('OTP Required', 'Please enter the 6-digit OTP to continue.');
-      return false;
-    }
-
     setOtpLoading(true);
     try {
-      const verifyRes: any = await verifyPhoneOtp({
+      await sendPhoneOtp({ phoneNumber: targetPhone });
+      navigation.navigate('OTP', {
+        flow: 'verify-only',
+        verificationType: 'phone',
+        type: 'phone',
+        value: targetPhone,
         phoneNumber: targetPhone,
-        otp: phoneOtp.trim(),
+        returnTo: 'EditProfile',
+        returnToKey: route?.key,
       });
-
-      if (!verifyRes?.data?.verified) {
-        Alert.alert('Invalid OTP', verifyRes?.data?.message || 'Phone verification failed.');
-        return false;
-      }
-
-      setIsPhoneVerified(true);
-      return true;
-    } catch (verifyErr: any) {
-      Alert.alert('Verification Failed', getErrorMessage(verifyErr, 'OTP verification failed. Please try again.'));
-      return false;
+    } catch (sendErr: any) {
+      Alert.alert('OTP Error', getErrorMessage(sendErr, 'Failed to send OTP. Please try again.'));
     } finally {
       setOtpLoading(false);
     }
+    return false;
   };
 
   const startEmailOtpStep = async (
@@ -245,7 +371,9 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         value: targetEmail,
         email: targetEmail,
         returnTo: 'EditProfile',
+            returnToKey: route?.key,
         pendingNewEmail,
+          oldEmailVerifiedOtp: verifiedOldEmailOtp,
       });
       Alert.alert(
         'OTP Required',
@@ -260,6 +388,44 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     }
   };
 
+  const applyEmailChange = async (
+    resolvedUserId: string,
+    activeToken: string | null,
+    overrideOldEmailOtp?: string,
+    overrideNewEmailOtp?: string
+  ) => {
+    if (activeToken) {
+      setAuthToken(activeToken);
+    }
+
+    const emailPayload: any = {
+      email: normalizedCurrentEmail || normalizedNewEmail,
+      newEmail: normalizedNewEmail,
+      oldEmail: normalizedCurrentEmail,
+      otp: (overrideNewEmailOtp || verifiedNewEmailOtp || overrideOldEmailOtp || verifiedOldEmailOtp).trim(),
+      oldEmailOtp: (overrideOldEmailOtp || verifiedOldEmailOtp).trim(),
+      newEmailOtp: (overrideNewEmailOtp || verifiedNewEmailOtp).trim(),
+      old_email: normalizedCurrentEmail,
+      new_email: normalizedNewEmail,
+    };
+
+    if (resolvedUserId) {
+      emailPayload.id = resolvedUserId;
+      emailPayload.customerId = resolvedUserId;
+      emailPayload.customer_id = resolvedUserId;
+      emailPayload.userId = resolvedUserId;
+      emailPayload.userID = resolvedUserId;
+      emailPayload._id = resolvedUserId;
+    }
+
+    const emailResp: any = await changeEmail(emailPayload);
+    console.log('Change email response:', emailResp);
+    const { success: emailSuccess, message: emailMessage } = isApiSuccess(emailResp);
+    if (!emailSuccess) {
+      throw new Error(emailMessage || 'Failed to update email');
+    }
+  };
+
 
   const handleUpdate = async () => {
     try {
@@ -270,11 +436,38 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       }
 
       if (phoneChanged && !isPhoneVerified) {
-        const verified = await ensurePhoneVerification(
-          normalizedNewPhone,
-          'Enter the OTP sent to your new phone number, then press Update again.'
-        );
+        const verified = await ensurePhoneVerification(normalizedNewPhone);
         if (!verified) return;
+      }
+
+      if (phoneChanged) {
+        if (!verifiedPhoneOtp) {
+          Alert.alert('Verification Required', 'Please verify the new phone number first.');
+          return;
+        }
+
+        const phonePayload: any = {
+          phoneNumber: normalizedNewPhone,
+          newPhoneNumber: normalizedNewPhone,
+          currentPhoneNumber: normalizedCurrentPhone,
+          otp: verifiedPhoneOtp,
+        };
+        if (resolvedUserId) {
+          phonePayload.id = resolvedUserId;
+          phonePayload.customerId = resolvedUserId;
+          phonePayload.customer_id = resolvedUserId;
+          phonePayload.userId = resolvedUserId;
+          phonePayload.userID = resolvedUserId;
+          phonePayload._id = resolvedUserId;
+        }
+
+        const phoneResp: any = await changePhoneNumber(phonePayload);
+        console.log('Change phone response:', phoneResp);
+        const { success: phoneSuccess, message: phoneMessage } = isApiSuccess(phoneResp);
+        if (!phoneSuccess) {
+          Alert.alert('Error', phoneMessage || 'Failed to update phone number');
+          return;
+        }
       }
 
       // If username changed and backend supports changing username, call API
@@ -307,10 +500,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           }
 
           const targetPhone = normalizedNewPhone || normalizedCurrentPhone;
-          const verified = await ensurePhoneVerification(
-            targetPhone,
-            'Enter OTP and press Update again to complete username change.'
-          );
+          const verified = await ensurePhoneVerification(targetPhone);
           if (!verified) return;
 
           const retryResp: any = await changeUsername(payload);
@@ -324,38 +514,30 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       }
 
       if (emailChanged) {
-        if (!isOldEmailVerified) {
+        const oldVerified = isOldEmailVerified || !!route?.params?.emailOldVerified;
+        const newVerified = isNewEmailVerified || !!route?.params?.emailNewVerified;
+
+        if (!oldVerified) {
           await startEmailOtpStep(normalizedCurrentEmail, 'old', normalizedNewEmail);
           return;
         }
 
-        if (!isNewEmailVerified) {
-          await startEmailOtpStep(normalizedNewEmail, 'new', normalizedNewEmail);
+        if (!newVerified) {
+          if (newEmailOtpSentRef.current !== normalizedNewEmail) {
+            newEmailOtpSentRef.current = normalizedNewEmail;
+            await startEmailOtpStep(normalizedNewEmail, 'new', normalizedNewEmail);
+          }
           return;
         }
 
-        const emailPayload: any = {
-          email: normalizedCurrentEmail || normalizedNewEmail,
-          newEmail: normalizedNewEmail,
-          oldEmail: normalizedCurrentEmail,
-          otp: verifiedNewEmailOtp || verifiedOldEmailOtp,
-        };
-
-        if (resolvedUserId) {
-          emailPayload.id = resolvedUserId;
-          emailPayload.customerId = resolvedUserId;
-          emailPayload.customer_id = resolvedUserId;
-          emailPayload.userId = resolvedUserId;
-          emailPayload.userID = resolvedUserId;
-          emailPayload._id = resolvedUserId;
-        }
-
-        const emailResp: any = await changeEmail(emailPayload);
-        const { success: emailSuccess, message: emailMessage } = isApiSuccess(emailResp);
-        if (!emailSuccess) {
-          Alert.alert('Error', emailMessage || 'Failed to update email');
-          return;
-        }
+        await applyEmailChange(resolvedUserId, activeToken);
+        navigation.setParams({
+          emailOldVerified: undefined,
+          emailNewVerified: undefined,
+          oldEmailVerifiedOtp: undefined,
+          newEmailVerifiedOtp: undefined,
+          pendingNewEmail: undefined,
+        });
       }
 
       if (passwordChanged) {
@@ -363,6 +545,8 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           Alert.alert('Error', 'Current password is missing. Please login again and try updating password.');
           return;
         }
+
+        const phoneForPasswordPayload = phoneChanged ? normalizedNewPhone : (userData.phoneNumber || '').trim();
 
         const passwordPayload: any = {
           oldPassword: userData.password,
@@ -382,19 +566,12 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           passwordPayload.email = userData.email;
         }
 
-        if (userData.phoneNumber) {
-          passwordPayload.phoneNumber = userData.phoneNumber;
+        if (phoneForPasswordPayload) {
+          passwordPayload.phoneNumber = phoneForPasswordPayload;
         }
-
-        console.log('Change password payload:', {
-          ...passwordPayload,
-          oldPassword: '***',
-          newPassword: '***',
-        });
 
         try {
           const passwordResp: any = await changePassword(passwordPayload);
-          console.log('Change password response:', passwordResp);
           const { success: passwordSuccess, message: passwordMessage } = isApiSuccess(passwordResp);
 
           if (!passwordSuccess) {
@@ -530,31 +707,9 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
               />
 
               {phoneChanged || usernameChanged ? (
-                <>
-                  <Text style={styles.label}>Phone OTP</Text>
-                  <TextInput
-                    mode="outlined"
-                    placeholder="Enter 6-digit OTP"
-                    value={phoneOtp}
-                    onChangeText={setPhoneOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    style={styles.input}
-                    textColor="#000"
-                    outlineColor="#E0E0E0"
-                    activeOutlineColor="#1A80A4"
-                    disabled={!isPhoneOtpSent}
-                  />
-                  {!isPhoneOtpSent ? (
-                    <Text style={styles.helperText}>
-                      Press Update to send OTP {phoneChanged ? 'to your new phone number' : 'for verification'}.
-                    </Text>
-                  ) : isPhoneVerified ? (
-                    <Text style={styles.verifiedText}>Phone number verified.</Text>
-                  ) : (
-                    <Text style={styles.helperText}>Enter OTP and press Update again to verify.</Text>
-                  )}
-                </>
+                <Text style={styles.helperText}>
+                  Press Update to verify the phone number on the next page.
+                </Text>
               ) : null}
             </>
           ) : null}

@@ -77,10 +77,9 @@ export default function LoginPage() {
         finalPayload = { email: v, password: payload.password };
       }
 
-      console.log("Login payload (sent):", finalPayload);
+      console.log("Login request sent", { method: isPhone ? "phone" : "email" });
 
       const response: any = await loginCustomer(finalPayload);
-      console.log("Login response:", response);
 
       const token = extractToken(response);
       const user = extractUser(response);
