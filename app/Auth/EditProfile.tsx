@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { TextInput, Button, Text, IconButton } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
 import { useUser } from '../../src/contexts/UserContext';
 import {
   changeEmail,
   changePassword,
   changePhoneNumber,
+  changeProfileImage,
   changeUsername,
   sendEmailOtp,
   sendPhoneOtp,
@@ -46,6 +48,8 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   const [username, setUsername] = useState(userData.name || '');
   const [email, setEmail] = useState(userData.email || '');
   const [phoneNumber, setPhoneNumber] = useState(userData.phoneNumber || '');
+  const [profileImageUri, setProfileImageUri] = useState(userData.profileImage || '');
+  const [profileImageChanged, setProfileImageChanged] = useState(false);
   const [password, setPassword] = useState(userData.password || '');
   const [showPassword, setShowPassword] = useState(false);
   const [isUpdated, setIsUpdated] = useState(false);
@@ -76,6 +80,8 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     setUsername(userData.name || '');
     setEmail(userData.email || '');
     setPhoneNumber(userData.phoneNumber || ''); 
+    setProfileImageUri(userData.profileImage || '');
+    setProfileImageChanged(false);
     setPassword(userData.password || '');
     resetPhoneVerificationState();
     resetEmailVerificationState();
@@ -250,6 +256,47 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       success: success || /success/i.test(String(message)),
       message,
     };
+  };
+
+  const extractProfileImageUrl = (resp: any): string => {
+    return (
+      resp?.data?.customer?.profileImage ||
+      resp?.data?.user?.profileImage ||
+      resp?.data?.profileImage ||
+      resp?.customer?.profileImage ||
+      resp?.user?.profileImage ||
+      resp?.profileImage ||
+      ''
+    );
+  };
+
+  const handlePickProfileImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Please allow photo library access to upload a profile image.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const pickedUri = result.assets[0].uri;
+      if (pickedUri) {
+        setProfileImageUri(pickedUri);
+        setProfileImageChanged(true);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to pick image.'));
+    }
   };
 
   const applyPhoneChangeAfterOtp = async (newPhone: string, otp: string) => {
@@ -431,8 +478,22 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
     try {
       const activeToken = token || userData.token || null;
       const resolvedUserId = userData.id || getUserIdFromToken(activeToken);
+      let nextProfileImage = userData.profileImage || '';
       if (activeToken) {
         setAuthToken(activeToken);
+      }
+
+      if (profileImageChanged && profileImageUri) {
+        const profileImageResp = await changeProfileImage({
+          imageUri: profileImageUri,
+          id: resolvedUserId,
+          customerId: resolvedUserId,
+          customer_id: resolvedUserId,
+          userId: resolvedUserId,
+          userID: resolvedUserId,
+          _id: resolvedUserId,
+        });
+        nextProfileImage = extractProfileImageUrl(profileImageResp) || profileImageUri;
       }
 
       if (phoneChanged && !isPhoneVerified) {
@@ -590,6 +651,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         name: username,
         email: userData.email ? email : userData.email,
         phoneNumber: userData.phoneNumber ? phoneNumber : userData.phoneNumber,
+        profileImage: nextProfileImage,
         password: password,
         token: userData.token || token || '',
         id: resolvedUserId || '',
@@ -601,7 +663,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           text: 'OK',
           onPress: () => {
             setIsUpdated(true);
-            navigation.navigate('AccountView', { username, email, phoneNumber });
+            navigation.navigate('AccountView', { username, email, phoneNumber, profileImage: nextProfileImage });
           },
         },
       ]);
@@ -644,10 +706,14 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.profileImageContainer}>
-          <TouchableOpacity style={styles.avatarPlaceholder}>
-            <IconButton icon="camera" size={40} iconColor="#999" />
+          <TouchableOpacity style={styles.avatarPlaceholder} onPress={handlePickProfileImage}>
+            {profileImageUri ? (
+              <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
+            ) : (
+              <IconButton icon="camera" size={40} iconColor="#999" />
+            )}
           </TouchableOpacity>
-          <Text style={styles.uploadText}>Upload Profile Picture</Text>
+          <Text style={styles.uploadText}>{profileImageUri ? 'Tap to change profile picture' : 'Upload Profile Picture'}</Text>
         </View>
 
         <View style={styles.inputContainer}>
@@ -804,6 +870,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   uploadText: {
     color: '#666',

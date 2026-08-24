@@ -349,6 +349,16 @@ export type ChangePhoneNumberPayload = {
   _id?: string;
 };
 
+export type ChangeProfileImagePayload = {
+  imageUri: string;
+  id?: string;
+  customerId?: string;
+  customer_id?: string;
+  userId?: string;
+  userID?: string;
+  _id?: string;
+};
+
 export const changePhoneNumber = async (data: ChangePhoneNumberPayload) => {
   const newPhoneNumber = (data.newPhoneNumber ?? data.phoneNumber ?? data.newPhone ?? data.phone ?? '').trim();
   const currentPhoneNumber = (data.currentPhoneNumber ?? data.oldPhoneNumber ?? data.currentPhone ?? data.oldPhone ?? '').trim();
@@ -596,6 +606,78 @@ export const changePassword = async (data: ChangePasswordPayload) => {
 
 export const changepw = (data: ChangePasswordPayload) => changePassword(data);
 
+export const changeProfileImage = async (data: ChangeProfileImagePayload) => {
+  const imageUri = (data.imageUri || '').trim();
+  if (!imageUri) {
+    throw new Error('Profile image is required.');
+  }
+
+  const uriParts = imageUri.split('/');
+  const rawFileName = uriParts[uriParts.length - 1] || `profile-${Date.now()}.jpg`;
+  const fileName = rawFileName.includes('.') ? rawFileName : `${rawFileName}.jpg`;
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  const mimeType =
+    ext === 'png'
+      ? 'image/png'
+      : ext === 'webp'
+        ? 'image/webp'
+        : 'image/jpeg';
+
+  const id = data.id ?? data.customerId ?? data.customer_id ?? data.userId ?? data.userID ?? data._id;
+  const url = `${API_URL}/customers/change-profileImage`;
+    const fieldCandidates = ['profileImage', 'image', 'file', 'avatar', 'photo'];
+
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
+    let lastError: any;
+
+    for (const fieldName of fieldCandidates) {
+      const formData = new FormData();
+      formData.append(fieldName, {
+        uri: imageUri,
+        name: fileName,
+        type: mimeType,
+      } as any);
+
+      if (id) {
+        formData.append('id', id);
+        formData.append('customerId', id);
+        formData.append('customer_id', id);
+        formData.append('userId', id);
+        formData.append('userID', id);
+        formData.append('_id', id);
+      }
+
+      console.log(`[API] PATCH ${url} (field: ${fieldName})`);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: formData,
+      });
+
+      const responseData = await response.json().catch(() => ({}));
+      if (response.ok) {
+        return responseData;
+      }
+
+      const message =
+        Array.isArray(responseData?.message)
+          ? responseData.message.join(', ')
+          : responseData?.message || `Request failed (${response.status})`;
+
+      lastError = new Error(message);
+      if (!/unexpected field/i.test(String(message))) {
+        throw lastError;
+      }
+    }
+
+    throw lastError || new Error('Unable to upload profile image right now. Please try again.');
+};
+
 
 export const getShops = () => {
   return request<any>('/shops/all', {
@@ -613,6 +695,7 @@ export default {
   verifyEmailOtp,
   changeEmail,
   changePassword,
+  changeProfileImage,
   changepw,
   getShops,
 };

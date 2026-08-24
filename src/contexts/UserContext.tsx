@@ -7,6 +7,7 @@ type UserData = {
   email: string;
   password: string;
   phoneNumber?: string;
+  profileImage?: string;
   token?: string;
   id?: string;
 };
@@ -27,6 +28,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     email: '',
     password: '',
     phoneNumber: '',
+    profileImage: '',
     token: '',
     id: '',
   });

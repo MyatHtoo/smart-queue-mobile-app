@@ -27,6 +27,7 @@ const AccountView = ({ navigation, route }: Props) => {
       name: username,
       email: email,
       phoneNumber: userData.phoneNumber,
+      profileImage: userData.profileImage,
       password: userData.password,
       token: userData.token || '',
       id: userData.id || '',
@@ -87,12 +88,16 @@ const AccountView = ({ navigation, route }: Props) => {
         
         {/* Profile: Avatar + Name + Email */}
         <View style={styles.profileSection}>
-          <Avatar.Icon
-            size={80}
-            icon="account"
-            style={styles.avatar}
-            color="#fff"
-          />
+          {userData.profileImage ? (
+            <Avatar.Image size={80} source={{ uri: userData.profileImage }} style={styles.avatar} />
+          ) : (
+            <Avatar.Icon
+              size={80}
+              icon="account"
+              style={styles.avatar}
+              color="#fff"
+            />
+          )}
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{username}</Text>
             <Text style={styles.email}>{userData.email ? userData.email : userData.phoneNumber}</Text>
