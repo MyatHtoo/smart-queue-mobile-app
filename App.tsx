@@ -13,6 +13,7 @@ import EditProfile from "./app/Auth/EditProfile";
 import Settings from "./app/Auth/Settings";
 import Support from "./app/Auth/Support";
 import OTPScreen from "./app/Auth/OTP";
+import LiveLocationScreen from "./app/screens/LiveLocationScreen";
 import { UserProvider } from "./src/contexts/UserContext";
 
 export default function App() {
@@ -39,6 +40,7 @@ export default function App() {
             <Stack.Screen name="EditProfile" component={EditProfile} />
             <Stack.Screen name="Settings" component={Settings} />
             <Stack.Screen name="Support" component={Support} />
+            <Stack.Screen name="LiveLocation" component={LiveLocationScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>

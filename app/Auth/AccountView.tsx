@@ -50,6 +50,10 @@ const AccountView = ({ navigation, route }: Props) => {
     navigation.navigate('MainTabs', { screen: 'MyQueues' });
   };
 
+  const handleLiveLocation = () => {
+    navigation.navigate('LiveLocation');
+  };
+
   // When "Logout" is pressed - go back to login screen
   const handleLogout = async () => {
     console.log('Logout pressed');
@@ -164,7 +168,28 @@ const AccountView = ({ navigation, route }: Props) => {
 
           <Divider style={styles.menuDivider} />
 
-          {/* Option 3: Logout (no arrow on right) */}
+          {/* Option 3: Live Location */}
+          <TouchableOpacity style={styles.menuItem} onPress={handleLiveLocation}>
+            <View style={styles.menuItemLeft}>
+              <IconButton
+                icon="map-marker-radius"
+                size={24}
+                iconColor="#1A80A4"
+                style={styles.menuIcon}
+              />
+              <Text style={styles.menuText}>Live Location</Text>
+            </View>
+            <IconButton
+              icon="chevron-right"
+              size={24}
+              iconColor="#999"
+              style={styles.chevronIcon}
+            />
+          </TouchableOpacity>
+
+          <Divider style={styles.menuDivider} />
+
+          {/* Option 4: Logout (no arrow on right) */}
           <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
             <View style={styles.menuItemLeft}>
               <IconButton

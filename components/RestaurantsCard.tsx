@@ -11,15 +11,17 @@ interface Props {
 }
 
 function SingleCard({ restaurant }: { restaurant: Restaurant }) {
-  const { name, cuisine, distance, waitInfo, image, shopType } = restaurant;
+  const { name, cuisine, distance, waitInfo, image, shopType, isWithin2km } = restaurant;
   const navigation = useNavigation<RootNavigationProp>();
 
   const handleJoinQueue = () => {
-    navigation.navigate("Screens", { screen: "JoinQueue", params: { restaurant } });
+    if (isWithin2km !== false) {
+      navigation.navigate("Screens", { screen: "JoinQueue", params: { restaurant } });
+    }
   };
 
   return (
-    <View style={{ marginBottom: 16, borderRadius: 20, borderWidth: 2, borderColor: "#17a2b8", backgroundColor: "white", overflow: "hidden" }}>
+    <View style={{ marginBottom: 16, borderRadius: 20, borderWidth: 2, borderColor: isWithin2km === false ? "#D1D5DB" : "#17a2b8", backgroundColor: "white", overflow: "hidden" }}>
       <View style={{ flexDirection: "row", height: 140 }}>
 
         {/* Left Image */}
@@ -52,10 +54,11 @@ function SingleCard({ restaurant }: { restaurant: Restaurant }) {
 
           <TouchableOpacity
             onPress={handleJoinQueue}
-            style={{ backgroundColor: "#17a2b8", paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, alignSelf: "flex-start" }}
+            disabled={isWithin2km === false}
+            style={{ backgroundColor: isWithin2km === false ? "#D1D5DB" : "#17a2b8", paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, alignSelf: "flex-start" }}
           >
             <Text style={{ color: "white", fontSize: 11, fontWeight: "600" }}>
-              Join Queue
+              {isWithin2km === false ? "Too far away" : "Join Queue"}
             </Text>
           </TouchableOpacity>
         </View>

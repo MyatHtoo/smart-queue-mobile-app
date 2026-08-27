@@ -9,6 +9,7 @@ export interface Restaurant {
   waitInfo: string;
   image: any;
   shopType?: string;
+  isWithin2km?: boolean;
 }
 
 export type ScreensStackParamList = {
@@ -31,6 +32,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   Support: undefined;
+  LiveLocation: undefined;
 };
 
 export type RootNavigationProp = NativeStackNavigationProp<RootStackParamList>;
