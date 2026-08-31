@@ -685,6 +685,38 @@ export const getShops = () => {
   });
 };
 
+export type CreateQueuePayload = {
+  shop_id: string;
+  customer_id: string;
+  table_type_id: string;
+  userRequirements: string;
+};
+
+export const createQueue = (data: CreateQueuePayload) => {
+  return request<any>('/queues/create', {
+    method: 'POST',
+    body: data,
+  });
+};
+
+export const getShopQueues = (shopId: string) => {
+  return request<any>(`/queues/shop/${encodeURIComponent(shopId)}`, {
+    method: 'GET',
+  });
+};
+
+export const getCustomerQueues = (customerId: string) => {
+  return request<any>(`/queues/customer/${encodeURIComponent(customerId)}`, {
+    method: 'GET',
+  });
+};
+
+export const getQueueById = (queueId: string) => {
+  return request<any>(`/queues/${encodeURIComponent(queueId)}`, {
+    method: 'GET',
+  });
+};
+
 
 export default {
   registerCustomer,
@@ -698,4 +730,8 @@ export default {
   changeProfileImage,
   changepw,
   getShops,
+  createQueue,
+  getShopQueues,
+  getCustomerQueues,
+  getQueueById,
 };

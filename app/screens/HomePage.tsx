@@ -4,11 +4,33 @@ import { useState, useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import RestaurantsCard from "../../components/RestaurantsCard";
-import { getShops } from "../../src/services/api";
+import { getShopQueues, getShops } from "../../src/services/api";
 
 const FALLBACK_COORDS = {
   latitude: 20.048089972909867,
   longitude: 99.89494063617323,
+};
+
+const getActiveQueueCount = (response: any) => {
+  const data = response?.data ?? response;
+  const queues = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.queues)
+      ? data.queues
+      : Array.isArray(data?.data)
+        ? data.data
+        : null;
+
+  if (queues) {
+    const inactiveStatuses = new Set(["completed", "complete", "cancelled", "canceled", "served", "done"]);
+    return queues.filter((queue: any) => {
+      const status = String(queue?.status || queue?.queueStatus || "").toLowerCase();
+      return !status || !inactiveStatuses.has(status);
+    }).length;
+  }
+
+  const count = data?.activeQueueCount ?? data?.queueCount ?? data?.count ?? data?.total;
+  return Number.isFinite(Number(count)) ? Number(count) : 0;
 };
 
 const getDistanceInMeters = (
@@ -55,7 +77,22 @@ export default function HomePage() {
         const data = await getShops();
         const items = (Array.isArray(data) ? data : data?.data ?? data?.shops ?? []) as any[];
         if (!mounted) return;
-        setRawApiShops(items);
+        const shopsWithQueues = await Promise.all(
+          items.map(async (shop: any) => {
+            const shopId = shop?._id || shop?.id || shop?.shopId;
+            if (!shopId) return { ...shop, liveQueueCount: 0 };
+
+            try {
+              const queues = await getShopQueues(String(shopId));
+              return { ...shop, liveQueueCount: getActiveQueueCount(queues) };
+            } catch (error) {
+              console.warn(`Error fetching queues for shop ${shopId}:`, error);
+              return { ...shop, liveQueueCount: 0 };
+            }
+          })
+        );
+        if (!mounted) return;
+        setRawApiShops(shopsWithQueues);
       } catch (e) {
         console.warn('Error fetching shops for HomePage:', e);
       } finally {
@@ -245,10 +282,11 @@ export default function HomePage() {
               : (s.shopType || (typeof s.shopTypes === "string" ? s.shopTypes : "")),
             distance: s.calculatedDistance || "—",
             isWithin2km: s.isWithin2km,
-            waitInfo: Array.isArray(s.tableTypes)
-              ? String(s.tableTypes.length)
-              : (s.waitInfo != null ? String(s.waitInfo) : "0"),
+            waitInfo: String(s.liveQueueCount ?? 0),
             image: s.shopImg ? { uri: s.shopImg } : require("../../assets/images/Thai.jpg"),
+            tableTypes: Array.isArray(s.tableTypes)
+              ? s.tableTypes
+              : (Array.isArray(s.table_types) ? s.table_types : []),
           }))} />
         )}
       </ScrollView>

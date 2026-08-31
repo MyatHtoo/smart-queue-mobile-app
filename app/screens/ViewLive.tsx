@@ -1,9 +1,9 @@
-import { ScrollView, View, Text, RefreshControl, Animated, TouchableOpacity } from "react-native";
+import { Alert, ScrollView, View, Text, RefreshControl, Animated } from "react-native";
 import { IconButton, Button } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { Entypo } from "@expo/vector-icons";
+import { getQueueById } from "../../src/services/api";
 
 interface QueueInfo {
   currentServing: number;
@@ -12,6 +12,7 @@ interface QueueInfo {
   estimatedWaitTime: number; // in minutes
   averageServiceTime: number; // in minutes per person
   queueStatus: "active" | "paused" | "closed";
+  backendStatus: string;
   lastUpdated: Date;
 }
 
@@ -20,23 +21,55 @@ export default function ViewLive() {
   const route = useRoute();
   const restaurant = (route.params as any)?.restaurant;
   const queueData = (route.params as any)?.queueData;
+  const queueId = queueData?.queueId;
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const [refreshing, setRefreshing] = useState(false);
-  // Static mock data based on queue number
-  const yourNumber = parseInt(queueData?.queueNumber) || 23;
-  const currentServing = yourNumber - 5; // 5 people behind
+  const yourNumber = parseInt(queueData?.queueNumber) || 0;
   
   const [liveQueue, setLiveQueue] = useState<QueueInfo>({
-    currentServing: currentServing,
+    currentServing: 0,
     yourNumber: yourNumber,
-    peopleInFront: yourNumber - currentServing,
-    estimatedWaitTime: (yourNumber - currentServing) * 5,
-    averageServiceTime: 5,
+    peopleInFront: 0,
+    estimatedWaitTime: 0,
+    averageServiceTime: 60,
     queueStatus: "active",
+    backendStatus: "waiting",
     lastUpdated: new Date(),
   });
+
+  const loadQueue = useCallback(async (showError = false) => {
+    if (!queueId) {
+      if (showError) Alert.alert("Queue unavailable", "The queue ID is missing.");
+      return;
+    }
+
+    try {
+      const response = await getQueueById(String(queueId));
+      const queue = response?.data ?? response;
+      const number = Number(queue?.queue_number ?? queue?.queueNumber ?? 0);
+      const waitTime = Number(queue?.estimated_wait_time ?? queue?.estimatedWaitTime ?? 0);
+      const backendStatus = String(queue?.status || "waiting");
+      const normalizedStatus = backendStatus.toLowerCase();
+      const isClosed = ["finished", "completed", "cancelled", "canceled"].includes(normalizedStatus);
+      const isReady = ["ready to seat", "qr-scanned", "seated"].includes(normalizedStatus);
+      const peopleInFront = normalizedStatus === "waiting" ? Math.max(1, Math.ceil(waitTime / 60)) : 0;
+
+      setLiveQueue({
+        currentServing: Math.max(0, number - peopleInFront),
+        yourNumber: number,
+        peopleInFront,
+        estimatedWaitTime: Number.isFinite(waitTime) ? waitTime : 0,
+        averageServiceTime: 60,
+        queueStatus: isClosed ? "closed" : "active",
+        backendStatus: isReady ? "Ready to seat" : backendStatus,
+        lastUpdated: new Date(),
+      });
+    } catch (error: any) {
+      if (showError) Alert.alert("Unable to refresh queue", error?.message || "Please try again.");
+    }
+  }, [queueId]);
 
   // Pulse animation for active status
   useEffect(() => {
@@ -60,40 +93,17 @@ export default function ViewLive() {
     return () => pulse.stop();
   }, [liveQueue.queueStatus]);
 
-  // Simulate live updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate queue progression
-      setLiveQueue((prev) => {
-        const shouldUpdate = Math.random() > 0.7; // 30% chance to update
-        if (shouldUpdate && prev.currentServing < prev.yourNumber) {
-          const newServing = prev.currentServing + 1;
-          const newPeopleInFront = Math.max(0, prev.yourNumber - newServing);
-          return {
-            ...prev,
-            currentServing: newServing,
-            peopleInFront: newPeopleInFront,
-            estimatedWaitTime: newPeopleInFront * prev.averageServiceTime,
-            lastUpdated: new Date(),
-          };
-        }
-        return prev;
-      });
-    }, 5000); // Check every 5 seconds
+    loadQueue(true);
+    const interval = setInterval(() => loadQueue(false), 10000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [loadQueue]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate API call to fetch latest queue data
-    setTimeout(() => {
-      setLiveQueue((prev) => ({
-        ...prev,
-        lastUpdated: new Date(),
-      }));
-      setRefreshing(false);
-    }, 1000);
+    await loadQueue(true);
+    setRefreshing(false);
   };
 
   const getStatusColor = () => {
@@ -112,7 +122,7 @@ export default function ViewLive() {
   const getStatusText = () => {
     switch (liveQueue.queueStatus) {
       case "active":
-        return "Queue Active";
+        return liveQueue.backendStatus || "Queue Active";
       case "paused":
         return "Queue Paused";
       case "closed":
@@ -122,8 +132,10 @@ export default function ViewLive() {
     }
   };
 
-  const isYourTurn = liveQueue.currentServing >= liveQueue.yourNumber;
-  const progress = Math.min(1, (liveQueue.yourNumber - liveQueue.peopleInFront) / liveQueue.yourNumber);
+  const isYourTurn = ["ready to seat", "qr-scanned", "seated"].includes(liveQueue.backendStatus.toLowerCase());
+  const progress = liveQueue.yourNumber > 0
+    ? Math.min(1, Math.max(0, (liveQueue.yourNumber - liveQueue.peopleInFront) / liveQueue.yourNumber))
+    : (isYourTurn ? 1 : 0);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>

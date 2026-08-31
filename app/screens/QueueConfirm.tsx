@@ -7,6 +7,7 @@ export default function QueueConfirm() {
   const navigation = useNavigation();
   const route = useRoute();
   const queueData = (route.params as any)?.queueData;
+  const createdQueue = queueData?.queue;
 
   // Generate queue number based on queue type
   const getQueueNumber = () => {
@@ -15,7 +16,12 @@ export default function QueueConfirm() {
     return `${prefix}#${randomNum}`;
   };
 
-  const queueNumber = getQueueNumber();
+  const queueNumber = String(
+    createdQueue?.queueNumber ||
+    createdQueue?.queue_number ||
+    createdQueue?.number ||
+    getQueueNumber()
+  );
   const peopleInFront = Math.floor(Math.random() * 10) + 1;
 
   const createQueueData = () => ({
@@ -271,7 +277,7 @@ export default function QueueConfirm() {
           <Button
             mode="contained"
             onPress={() => {
-              navigation.navigate("MainTabs" as never, { screen: "MyQueues" } as never);
+              (navigation.navigate as any)("MainTabs", { screen: "MyQueues" });
             }}
             style={{
               backgroundColor: "#17a2b8",
@@ -287,7 +293,7 @@ export default function QueueConfirm() {
           <Button
             mode="outlined"
             onPress={() => {
-              navigation.navigate("MainTabs" as never, { screen: "HomePage" } as never);
+              (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
             }}
             style={{
               borderColor: "#17a2b8",

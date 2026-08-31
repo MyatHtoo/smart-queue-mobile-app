@@ -93,6 +93,9 @@ export default function RestaurantsCard({ restaurant, restaurants }: Props) {
           distance: s.distance || '—',
           waitInfo: (Array.isArray(s.tableTypes) ? String(s.tableTypes.length) : (s.waitInfo != null ? String(s.waitInfo) : '0')),
           image: s.shopImg ? { uri: s.shopImg } : (s.image ? (typeof s.image === 'string' ? { uri: s.image } : s.image) : require('../assets/images/Thai.jpg')),
+          tableTypes: Array.isArray(s.tableTypes)
+            ? s.tableTypes
+            : (Array.isArray(s.table_types) ? s.table_types : []),
         }));
 
         if (mounted) setShops(mapped);

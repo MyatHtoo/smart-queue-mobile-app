@@ -1,20 +1,103 @@
-import { ScrollView, View, Text } from "react-native";
-import { IconButton } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useState } from "react";
-import { useNavigation, TabActions } from "@react-navigation/native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, View } from "react-native";
+import { useCallback, useState } from "react";
+import { useFocusEffect, useNavigation, TabActions } from "@react-navigation/native";
 import QueueCard from "../../components/QueueCard";
 import EmptyState from "../../components/EmptyState";
 import TabSelector from "../../components/TabSelector";
-import { MOCK_ACTIVE_QUEUES, MOCK_HISTORY_QUEUES, Queue } from "../../src/constants/mockData";
+import { Queue } from "../../src/constants/mockData";
+import { useUser } from "../../src/contexts/UserContext";
+import { getCustomerQueues } from "../../src/services/api";
+
+const getQueueItems = (response: any): any[] => {
+  const data = response?.data ?? response;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.queues)) return data.queues;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+};
+
+const formatDate = (value: any) => {
+  if (!value) return "Unknown";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+};
+
+const mapQueue = (item: any): Queue => {
+  const shop = item?.shop_id || item?.shopId || item?.shop || {};
+  const tableType = item?.table_type_id || item?.tableTypeId || item?.tableType || {};
+  const rawStatus = String(item?.status || item?.queueStatus || "active").toLowerCase();
+  const isFinished = ["finished", "completed", "complete", "served", "done", "expired", "cancelled", "canceled"].includes(rawStatus);
+  const isReady = ["ready", "called", "notified"].includes(rawStatus);
+  const partySize = Number(item?.partySize || item?.guestCount || item?.numberOfGuests || tableType?.capacity);
+  const wait = item?.estimatedWait || item?.estimated_wait || item?.waitingTime;
+
+  return {
+    id: String(item?._id || item?.id || item?.queue_id || item?.queueId),
+    restaurantName: shop?.name || shop?.shopName || item?.shopName || "Shop",
+    queueNumber: String(item?.queueNumber || item?.queue_number || item?.number || item?.queueNo || ""),
+    partySize: Number.isFinite(partySize) && partySize > 0 ? partySize : undefined,
+    queueType: tableType?.name || tableType?.title || item?.queueType || "",
+    position: Number(item?.position ?? item?.queuePosition ?? 0),
+    totalPeople: Number(item?.totalPeople ?? item?.peopleAhead ?? 0),
+    estimatedWait: wait != null ? String(wait) : (isFinished ? "Completed" : "Calculating"),
+    joinedAt: formatDate(item?.createdAt || item?.joinedAt || item?.created_at),
+    status: isFinished ? "expired" : isReady ? "ready" : "active",
+    notes: item?.userRequirements || item?.notes || "",
+  };
+};
 
 export default function MyQueue() {
   const navigation = useNavigation();
+  const { userData } = useUser();
   const [activeTab, setActiveTab] = useState<"active" | "history">("active");
-  const [activeQueues, setActiveQueues] = useState<Queue[]>(MOCK_ACTIVE_QUEUES);
+  const [activeQueues, setActiveQueues] = useState<Queue[]>([]);
+  const [historyQueues, setHistoryQueues] = useState<Queue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadQueues = useCallback(async (showRefresh = false) => {
+    if (!userData.id) {
+      setActiveQueues([]);
+      setHistoryQueues([]);
+      setLoading(false);
+      return;
+    }
+
+    showRefresh ? setRefreshing(true) : setLoading(true);
+    try {
+      const response = await getCustomerQueues(userData.id);
+      const queues = getQueueItems(response).map(mapQueue);
+      setActiveQueues(queues.filter((queue) => queue.status !== "expired"));
+      setHistoryQueues(queues.filter((queue) => queue.status === "expired"));
+    } catch (error: any) {
+      Alert.alert("Unable to load queues", error?.message || "Please try again.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [userData.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadQueues();
+    }, [loadQueues])
+  );
 
   const handleCancelQueue = (id: string) => {
-    setActiveQueues(activeQueues.filter((queue) => queue.id !== id));
+    Alert.alert(
+      "Cancel queue?",
+      "Are you sure you want to leave this queue?",
+      [
+        { text: "Keep Queue", style: "cancel" },
+        {
+          text: "Confirm Cancel",
+          style: "destructive",
+          onPress: () => {
+            setActiveQueues((queues) => queues.filter((queue) => queue.id !== id));
+          },
+        },
+      ]
+    );
   };
 
   const handleViewLive = (queue: Queue) => {
@@ -26,6 +109,7 @@ export default function MyQueue() {
           cuisine: queue.queueType || "Restaurant",
         },
         queueData: {
+          queueId: queue.id,
           queueNumber: parseInt(queue.queueNumber || "0"),
           partySize: queue.partySize,
           queueType: queue.queueType,
@@ -45,7 +129,7 @@ export default function MyQueue() {
     navigation.dispatch(TabActions.jumpTo('QRScan'));
   };
 
-  const displayQueues = activeTab === "active" ? activeQueues : MOCK_HISTORY_QUEUES;
+  const displayQueues = activeTab === "active" ? activeQueues : historyQueues;
 
   return (
     <View style={{ flex: 1, backgroundColor: "white" }} >
@@ -61,8 +145,11 @@ export default function MyQueue() {
       <View style={{ flex: 1 }}>
         <ScrollView
           style={{ flex: 1 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadQueues(true)} colors={["#17a2b8"]} />}
           contentContainerStyle={{ padding: 16, paddingBottom: 50, flexGrow: 1 }}>
-          {displayQueues.length === 0 ? (
+          {loading ? (
+            <ActivityIndicator size="large" color="#17a2b8" style={{ marginTop: 40 }} />
+          ) : displayQueues.length === 0 ? (
             <EmptyState 
               activeTab={activeTab} 
               onScanQRCode={handleScanQRCode} 

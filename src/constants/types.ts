@@ -10,6 +10,7 @@ export interface Restaurant {
   image: any;
   shopType?: string;
   isWithin2km?: boolean;
+  tableTypes?: any[];
 }
 
 export type ScreensStackParamList = {
