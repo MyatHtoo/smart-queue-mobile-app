@@ -3,7 +3,16 @@ import { IconButton, Button } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { getQueueById } from "../../src/services/api";
+import { getQueueById, getShopQueues } from "../../src/services/api";
+import {
+  getEstimatedWait,
+  getQueueId,
+  getQueueNumber,
+  getQueueStatus,
+  getSortedActiveQueues,
+  isFinishedQueueStatus,
+  isTurnQueueStatus,
+} from "../../src/utils/LiveQueue";
 
 interface QueueInfo {
   currentServing: number;
@@ -22,6 +31,7 @@ export default function ViewLive() {
   const restaurant = (route.params as any)?.restaurant;
   const queueData = (route.params as any)?.queueData;
   const queueId = queueData?.queueId;
+  const shopId = queueData?.shopId || restaurant?._id || restaurant?.id || restaurant?.shop_id;
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -46,30 +56,37 @@ export default function ViewLive() {
     }
 
     try {
-      const response = await getQueueById(String(queueId));
-      const queue = response?.data ?? response;
-      const number = Number(queue?.queue_number ?? queue?.queueNumber ?? 0);
-      const waitTime = Number(queue?.estimated_wait_time ?? queue?.estimatedWaitTime ?? 0);
-      const backendStatus = String(queue?.status || "waiting");
-      const normalizedStatus = backendStatus.toLowerCase();
-      const isClosed = ["finished", "completed", "cancelled", "canceled"].includes(normalizedStatus);
-      const isReady = ["ready to seat", "qr-scanned", "seated"].includes(normalizedStatus);
-      const peopleInFront = normalizedStatus === "waiting" ? Math.max(1, Math.ceil(waitTime / 60)) : 0;
+      const response = shopId
+        ? await getShopQueues(String(shopId))
+        : await getQueueById(String(queueId));
+      const queues = getSortedActiveQueues(response);
+      const queue = queues.find((item) => getQueueId(item) === String(queueId))
+        ?? (shopId ? (await getQueueById(String(queueId)))?.data : response?.data ?? response);
+      const number = getQueueNumber(queue);
+      const waitTime = getEstimatedWait(queue);
+      const backendStatus = getQueueStatus(queue);
+      const isClosed = isFinishedQueueStatus(backendStatus);
+      const isReady = isTurnQueueStatus(backendStatus);
+      const queueIndex = queues.findIndex((item) => getQueueId(item) === String(queueId));
+      const peopleInFront = isReady || isClosed ? 0 : Math.max(0, queueIndex);
+      const effectiveWaitTime = isReady || isClosed ? 0 : waitTime;
+      const averageServiceTime = peopleInFront > 0 ? Math.round(effectiveWaitTime / peopleInFront) : 0;
+      const firstQueueNumber = getQueueNumber(queues[0]);
 
       setLiveQueue({
-        currentServing: Math.max(0, number - peopleInFront),
+        currentServing: firstQueueNumber || Math.max(0, number - peopleInFront),
         yourNumber: number,
         peopleInFront,
-        estimatedWaitTime: Number.isFinite(waitTime) ? waitTime : 0,
-        averageServiceTime: 60,
+        estimatedWaitTime: Number.isFinite(effectiveWaitTime) ? effectiveWaitTime : 0,
+        averageServiceTime,
         queueStatus: isClosed ? "closed" : "active",
-        backendStatus: isReady ? "Ready to seat" : backendStatus,
+        backendStatus,
         lastUpdated: new Date(),
       });
     } catch (error: any) {
       if (showError) Alert.alert("Unable to refresh queue", error?.message || "Please try again.");
     }
-  }, [queueId]);
+  }, [queueId, shopId]);
 
   // Pulse animation for active status
   useEffect(() => {
@@ -227,7 +244,8 @@ export default function ViewLive() {
                 />
               </View>
               <Text style={{ color: "#6b7280", textAlign: "center", fontSize: 12, marginTop: 8 }}>
-                {liveQueue.peopleInFront} {liveQueue.peopleInFront === 1 ? 'person' : 'people'} ahead • ~{liveQueue.averageServiceTime} min each
+                {liveQueue.peopleInFront} {liveQueue.peopleInFront === 1 ? 'person' : 'people'} ahead
+                {liveQueue.averageServiceTime > 0 ? ` • ~${liveQueue.averageServiceTime} min each` : ''}
               </Text>
             </View>
           )}
@@ -289,7 +307,9 @@ export default function ViewLive() {
                     {liveQueue.estimatedWaitTime} <Text style={{ fontSize: 20 }}>min</Text>
                   </Text>
                   <Text style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
-                    ~{liveQueue.averageServiceTime} min per person
+                    {liveQueue.peopleInFront > 0
+                      ? `~${liveQueue.averageServiceTime} min per person`
+                      : 'Next in line'}
                   </Text>
                 </View>
                 <View style={{ backgroundColor: "#f0f9ff", borderRadius: 50, padding: 12 }}>

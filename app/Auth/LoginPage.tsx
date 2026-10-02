@@ -144,7 +144,7 @@ export default function LoginPage() {
       // set api auth token for subsequent requests
       if (token) setAuthToken(token);
       // persist token via context
-      if (token) setToken(token).catch(() => {});
+      if (token) await setToken(token);
 
       return true;
     } catch (error: any) {

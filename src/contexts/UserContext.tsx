@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getToken, saveToken, removeToken } from '../utils/Setcookie';
-import { setAuthToken } from '../services/api';
+import { setAuthToken, setUnauthorizedHandler } from '../services/api';
 
 type UserData = {
   name: string;
@@ -18,12 +19,14 @@ type UserContextType = {
   token: string | null;
   setToken: (token: string | null) => Promise<void>;
   clearToken: () => Promise<void>;
+  isLoading: boolean;
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
+const USER_DATA_KEY = '@user_profile';
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
-  const [userData, setUserData] = useState<UserData>({
+  const [userData, setUserDataState] = useState<UserData>({
     name: '',
     email: '',
     password: '',
@@ -34,11 +37,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const [token, setTokenState] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      // Clear local credentials when the backend rejects an expired/revoked token.
+      void removeToken();
+      setTokenState(null);
+      setAuthToken(null);
+    });
+
     // load token from storage on mount
     (async () => {
       try {
+        const savedProfile = await AsyncStorage.getItem(USER_DATA_KEY);
+        if (savedProfile) {
+          const parsed = JSON.parse(savedProfile);
+          setUserDataState((current) => ({ ...current, ...parsed, password: '' }));
+        }
         const t = await getToken();
         if (t) {
           setTokenState(t);
@@ -46,9 +62,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (e) {
         console.warn('Failed to load token in UserProvider', e);
+      } finally {
+        setIsLoading(false);
       }
     })();
+    return () => setUnauthorizedHandler(null);
   }, []);
+
+  const setUserData = (data: UserData) => {
+    const safeData = { ...data, password: '' };
+    setUserDataState(safeData);
+    void AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(safeData));
+  };
 
   const setToken = async (t: string | null) => {
     try {
@@ -58,6 +83,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setAuthToken(t);
       } else {
         await removeToken();
+        await AsyncStorage.removeItem(USER_DATA_KEY);
         setTokenState(null);
         setAuthToken(null);
       }
@@ -71,7 +97,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <UserContext.Provider value={{ userData, setUserData, token, setToken, clearToken }}>
+    <UserContext.Provider value={{ userData, setUserData, token, setToken, clearToken, isLoading }}>
       {children}
     </UserContext.Provider>
   );

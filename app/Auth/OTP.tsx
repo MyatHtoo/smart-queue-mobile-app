@@ -162,7 +162,7 @@ export default function OTPScreen({ navigation, route }: Props) {
 
       if (token) {
         setAuthToken(token);
-        setToken(token).catch(() => {});
+        await setToken(token);
       }
 
       setUserData({

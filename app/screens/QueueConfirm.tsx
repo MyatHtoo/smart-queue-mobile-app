@@ -2,41 +2,56 @@ import { View, Text, Image, ScrollView } from "react-native";
 import { Button, IconButton } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useEffect, useState } from "react";
+import { getShopQueues } from "../../src/services/api";
+import { getEstimatedWait, getQueueId, getQueueNumber, getSortedActiveQueues, isTurnQueueStatus } from "../../src/utils/LiveQueue";
 
 export default function QueueConfirm() {
   const navigation = useNavigation();
   const route = useRoute();
   const queueData = (route.params as any)?.queueData;
   const createdQueue = queueData?.queue;
-
-  // Generate queue number based on queue type
-  const getQueueNumber = () => {
-    const randomNum = Math.floor(Math.random() * 100) + 1;
-    const prefix = queueData?.queueType === "1-2" ? "A" : queueData?.queueType === "3-4" ? "B" : "C";
-    return `${prefix}#${randomNum}`;
-  };
+  const shopId = queueData?.restaurant?._id || queueData?.restaurant?.id || queueData?.restaurant?.shop_id;
+  const queueId = getQueueId(createdQueue);
 
   const queueNumber = String(
     createdQueue?.queueNumber ||
     createdQueue?.queue_number ||
     createdQueue?.number ||
-    getQueueNumber()
+    "Pending"
   );
-  const peopleInFront = Math.floor(Math.random() * 10) + 1;
-
-  const createQueueData = () => ({
-    id: Date.now().toString(),
-    restaurantName: queueData?.restaurant?.name || "Restaurant",
-    queueNumber: queueNumber,
-    partySize: queueData?.partySize || 1,
-    queueType: queueData?.queueType,
-    position: peopleInFront,
-    estimatedWait: `${Math.floor(Math.random() * 20) + 10} min`,
-    joinedAt: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-    status: "active" as const,
-    phone: queueData?.phone,
-    notes: queueData?.notes,
+  const [queueStats, setQueueStats] = useState({
+    peopleInFront: 0,
+    estimatedWait: getEstimatedWait(createdQueue),
   });
+
+  useEffect(() => {
+    if (!shopId) return;
+
+    let active = true;
+    const loadQueueStats = async () => {
+      try {
+        const queues = getSortedActiveQueues(await getShopQueues(String(shopId)));
+        const queueIndexById = queues.findIndex((queue) => getQueueId(queue) === queueId);
+        const queueIndexByNumber = queues.findIndex((queue) => getQueueNumber(queue) === Number(queueNumber));
+        const queueIndex = queueIndexById >= 0 ? queueIndexById : queueIndexByNumber;
+        const queue = queueIndex >= 0 ? queues[queueIndex] : undefined;
+
+        if (active && queue) {
+          const isTurn = isTurnQueueStatus(String(queue?.status || queue?.queueStatus || ""));
+          setQueueStats({
+            peopleInFront: isTurn ? 0 : Math.max(0, queueIndex),
+            estimatedWait: isTurn ? 0 : getEstimatedWait(queue),
+          });
+        }
+      } catch (error) {
+        console.warn("Unable to load queue confirmation wait time:", error);
+      }
+    };
+
+    loadQueueStats();
+    return () => { active = false; };
+  }, [queueId, queueNumber, shopId]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "white", paddingHorizontal: 16 }}>
@@ -206,7 +221,7 @@ export default function QueueConfirm() {
                 <Text
                   style={{ fontSize: 14, fontWeight: "600", color: "#111827" }}
                 >
-                  {peopleInFront} {peopleInFront === 1 ? 'person' : 'people'}
+                  {queueStats.peopleInFront} {queueStats.peopleInFront === 1 ? 'person' : 'people'}
                 </Text>
               </View>
 
@@ -223,7 +238,7 @@ export default function QueueConfirm() {
                 <Text
                   style={{ fontSize: 14, fontWeight: "600", color: "#17a2b8" }}
                 >
-                  ~{Math.floor(Math.random() * 20) + 10} min
+                  ~{queueStats.estimatedWait} min
                 </Text>
               </View>
 

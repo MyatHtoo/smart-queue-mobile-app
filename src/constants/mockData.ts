@@ -1,5 +1,6 @@
 export interface Queue {
   id: string;
+  shopId?: string;
   restaurantName: string;
   queueNumber?: string;
   partySize?: number;

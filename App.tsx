@@ -15,14 +15,25 @@ import Support from "./app/Auth/Support";
 import OTPScreen from "./app/Auth/OTP";
 import LiveLocationScreen from "./app/screens/LiveLocationScreen";
 import { UserProvider } from "./src/contexts/UserContext";
+import { useUser } from "./src/contexts/UserContext";
+import { ActivityIndicator, View } from "react-native";
 
-export default function App() {
+function AppNavigator() {
+  const { token, isLoading } = useUser();
   const Stack = createNativeStackNavigator();
+  if (isLoading) {
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color="#17a2b8" /></View>;
+  }
   return (
-    <UserProvider>
       <PaperProvider theme={Theme}>
         <NavigationContainer>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Navigator
+            key={token ? 'authenticated' : 'guest'}
+            initialRouteName={token ? 'MainTabs' : 'Login'}
+            screenOptions={{ headerShown: false }}
+          >
+            {/* Keep both auth and app routes registered. The keyed navigator
+                resets to the correct flow when authentication changes. */}
             <Stack.Screen name="Login" component={LoginPage} />
             <Stack.Screen name="Register" component={RegisterPage} />
             <Stack.Screen name="OTP" component={OTPScreen} />
@@ -44,6 +55,13 @@ export default function App() {
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <UserProvider>
+      <AppNavigator />
     </UserProvider>
   );
 }

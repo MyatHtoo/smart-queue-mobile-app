@@ -4,9 +4,14 @@ const BASE_URL = 'https://smart-q-backend-nestjs.onrender.com';
 const API_URL = `${BASE_URL}/api`;
 
 let authToken: string | null = null;
+let unauthorizedHandler: (() => void) | null = null;
 
 export const setAuthToken = (token: string | null) => {
   authToken = token;
+};
+
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  unauthorizedHandler = handler;
 };
 
 type RequestOptions = {
@@ -55,6 +60,10 @@ async function request<T>(
     const responseData = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 401 && authToken) {
+        authToken = null;
+        unauthorizedHandler?.();
+      }
       const message =
         Array.isArray(responseData.message)
           ? responseData.message.join(', ')
@@ -717,6 +726,30 @@ export const getQueueById = (queueId: string) => {
   });
 };
 
+export type QueueQrResponse = {
+  queue_id: string;
+  queue_qr: string;
+};
+
+export const scanQueueQr = (data: { queueId?: string; queueQr: string }) => {
+  const body = {
+    ...(data.queueId ? { queue_id: data.queueId.trim() } : {}),
+    queue_qr: data.queueQr.trim(),
+  };
+  console.log('[API] QR verification payload:', JSON.stringify(body));
+
+  return request<QueueQrResponse | { data: QueueQrResponse }>('/queues/generate-qr', {
+    method: 'PATCH',
+    body,
+  });
+};
+
+export const cancelQueue = (queueId: string) => {
+  return request<any>(`/queues/${encodeURIComponent(queueId)}`, {
+    method: 'DELETE',
+  });
+};
+
 
 export default {
   registerCustomer,
@@ -734,4 +767,6 @@ export default {
   getShopQueues,
   getCustomerQueues,
   getQueueById,
+  scanQueueQr,
+  cancelQueue,
 };

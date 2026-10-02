@@ -6,7 +6,9 @@ import EmptyState from "../../components/EmptyState";
 import TabSelector from "../../components/TabSelector";
 import { Queue } from "../../src/constants/mockData";
 import { useUser } from "../../src/contexts/UserContext";
-import { getCustomerQueues } from "../../src/services/api";
+import { cancelQueue, getCustomerQueues } from "../../src/services/api";
+import { getCancelledQueueIds, saveCancelledQueueId } from "../../src/utils/CancelledQueueStore";
+import { getQueueStatus, isFinishedQueueStatus, isTurnQueueStatus } from "../../src/utils/LiveQueue";
 
 const getQueueItems = (response: any): any[] => {
   const data = response?.data ?? response;
@@ -25,21 +27,22 @@ const formatDate = (value: any) => {
 const mapQueue = (item: any): Queue => {
   const shop = item?.shop_id || item?.shopId || item?.shop || {};
   const tableType = item?.table_type_id || item?.tableTypeId || item?.tableType || {};
-  const rawStatus = String(item?.status || item?.queueStatus || "active").toLowerCase();
-  const isFinished = ["finished", "completed", "complete", "served", "done", "expired", "cancelled", "canceled"].includes(rawStatus);
-  const isReady = ["ready", "called", "notified"].includes(rawStatus);
+  const rawStatus = getQueueStatus(item);
+  const isFinished = isFinishedQueueStatus(rawStatus);
+  const isReady = isTurnQueueStatus(rawStatus) || ["ready", "called", "notified"].includes(rawStatus);
   const partySize = Number(item?.partySize || item?.guestCount || item?.numberOfGuests || tableType?.capacity);
   const wait = item?.estimatedWait || item?.estimated_wait || item?.waitingTime;
 
   return {
     id: String(item?._id || item?.id || item?.queue_id || item?.queueId),
+    shopId: String(shop?._id || shop?.id || item?.shop_id || item?.shopId || ""),
     restaurantName: shop?.name || shop?.shopName || item?.shopName || "Shop",
     queueNumber: String(item?.queueNumber || item?.queue_number || item?.number || item?.queueNo || ""),
     partySize: Number.isFinite(partySize) && partySize > 0 ? partySize : undefined,
     queueType: tableType?.name || tableType?.title || item?.queueType || "",
-    position: Number(item?.position ?? item?.queuePosition ?? 0),
-    totalPeople: Number(item?.totalPeople ?? item?.peopleAhead ?? 0),
-    estimatedWait: wait != null ? String(wait) : (isFinished ? "Completed" : "Calculating"),
+    position: isReady || isFinished ? 0 : Number(item?.position ?? item?.queuePosition ?? 0),
+    totalPeople: isReady || isFinished ? 0 : Number(item?.totalPeople ?? item?.peopleAhead ?? 0),
+    estimatedWait: isFinished ? "Completed" : isReady ? "Your turn" : wait != null ? String(wait) : "Calculating",
     joinedAt: formatDate(item?.createdAt || item?.joinedAt || item?.created_at),
     status: isFinished ? "expired" : isReady ? "ready" : "active",
     notes: item?.userRequirements || item?.notes || "",
@@ -66,7 +69,10 @@ export default function MyQueue() {
     showRefresh ? setRefreshing(true) : setLoading(true);
     try {
       const response = await getCustomerQueues(userData.id);
-      const queues = getQueueItems(response).map(mapQueue);
+      const cancelledQueueIds = await getCancelledQueueIds(userData.id);
+      const queues = getQueueItems(response)
+        .map(mapQueue)
+        .filter((queue) => !cancelledQueueIds.has(queue.id));
       setActiveQueues(queues.filter((queue) => queue.status !== "expired"));
       setHistoryQueues(queues.filter((queue) => queue.status === "expired"));
     } catch (error: any) {
@@ -92,8 +98,16 @@ export default function MyQueue() {
         {
           text: "Confirm Cancel",
           style: "destructive",
-          onPress: () => {
-            setActiveQueues((queues) => queues.filter((queue) => queue.id !== id));
+          onPress: async () => {
+            try {
+              await cancelQueue(id);
+              // Hide only after the backend confirms cancellation.
+              await saveCancelledQueueId(userData.id || "", id);
+              setActiveQueues((queues) => queues.filter((queue) => queue.id !== id));
+              setHistoryQueues((queues) => queues.filter((queue) => queue.id !== id));
+            } catch (error: any) {
+              Alert.alert("Unable to cancel queue", error?.message || "Please try again.");
+            }
           },
         },
       ]
@@ -110,6 +124,7 @@ export default function MyQueue() {
         },
         queueData: {
           queueId: queue.id,
+          shopId: queue.shopId,
           queueNumber: parseInt(queue.queueNumber || "0"),
           partySize: queue.partySize,
           queueType: queue.queueType,

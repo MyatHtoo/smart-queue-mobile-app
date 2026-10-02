@@ -4,7 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useRef } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useUser } from "../../src/contexts/UserContext";
-import { createQueue } from "../../src/services/api";
+import { createQueue, getCustomerQueues } from "../../src/services/api";
+import { getQueueStatus, isFinishedQueueStatus } from "../../src/utils/LiveQueue";
 
 export default function JoinQueue() {
   const navigation = useNavigation();
@@ -50,6 +51,22 @@ export default function JoinQueue() {
 
     try {
       setJoining(true);
+      // The backend should enforce this too, but check here first so the user
+      // gets immediate feedback and cannot accidentally create duplicate queues.
+      const existingResponse: any = await getCustomerQueues(String(customerId));
+      const existingData = existingResponse?.data ?? existingResponse;
+      const existingQueues = Array.isArray(existingData)
+        ? existingData
+        : existingData?.queues ?? existingData?.data ?? [];
+      const hasActiveQueue = (Array.isArray(existingQueues) ? existingQueues : []).some((queue: any) => {
+        const status = getQueueStatus(queue);
+        return !isFinishedQueueStatus(status) && !['cancelled', 'canceled', 'completed', 'expired', 'served'].includes(status);
+      });
+      if (hasActiveQueue) {
+        Alert.alert('Active queue already exists', 'Cancel your current queue before joining another one.');
+        return;
+      }
+
       const queueResponse = await createQueue({
         shop_id: String(shopId),
         customer_id: String(customerId),

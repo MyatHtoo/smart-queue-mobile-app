@@ -37,7 +37,18 @@ const AccountView = ({ navigation, route }: Props) => {
   // When menu icon is pressed - navigate back to home
   const handleMenuPress = () => {
     console.log('Back to home');
-    navigation.goBack();
+    // AccountView can be opened as the root route, so there may be no
+    // navigation history. Always provide a safe home destination.
+    if (navigation.canGoBack?.()) {
+      navigation.goBack();
+    } else {
+      const routeNames = navigation.getState?.()?.routeNames ?? [];
+      if (routeNames.includes('MainTabs')) {
+        navigation.navigate('MainTabs', { screen: 'HomePage' });
+      } else if (routeNames.includes('Login')) {
+        navigation.navigate('Login');
+      }
+    }
   };
 
   // When "Edit Profile" is pressed - go to edit screen
