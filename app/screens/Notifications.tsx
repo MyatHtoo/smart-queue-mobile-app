@@ -1,213 +1,36 @@
-import { ScrollView, View, Text } from "react-native";
-import { IconButton, Card } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ScreenHeader } from "../../components/common/ScreenUI";
+import { AppNotification, useNotifications } from "../../src/contexts/NotificationContext";
+import { cardShadow, colors, radius } from "../../src/themes/design";
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  time: string;
-  read: boolean;
-  type: "queue" | "general" | "alert";
-}
+const relativeTime = (value: string) => {
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return "Just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`;
+  return `${Math.floor(seconds / 86400)} days ago`;
+};
+const appearance = (type: AppNotification["type"]) => type === "ready"
+  ? { icon: "megaphone" as const, color: colors.success, background: colors.successSoft }
+  : type === "alert" ? { icon: "alert-circle" as const, color: colors.danger, background: "#FEF2F2" }
+  : type === "general" ? { icon: "information-circle" as const, color: colors.textMuted, background: "#F1F5F9" }
+  : { icon: "time" as const, color: colors.primary, background: colors.primarySoft };
 
 export default function NotificationsScreen() {
-  const navigation = useNavigation();
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      title: "Queue Ready",
-      message: "Your queue at Zhengxin Chicken Steak is ready. Please proceed to the counter.",
-      time: "5 min ago",
-      read: false,
-      type: "queue",
-    },
-    {
-      id: "2",
-      title: "Position Update",
-      message: "You are now 3rd in line at Martini Cafe.",
-      time: "15 min ago",
-      read: false,
-      type: "queue",
-    },
-    {
-      id: "3",
-      title: "Queue Cancelled",
-      message: "Your queue at Thai Restaurant has been cancelled.",
-      time: "1 hour ago",
-      read: true,
-      type: "alert",
-    },
-    {
-      id: "4",
-      title: "Welcome to Smart Queue",
-      message: "Thank you for using Smart Queue. Start scanning QR codes to join queues!",
-      time: "2 days ago",
-      read: true,
-      type: "general",
-    },
-  ]);
-
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
+  const navigation = useNavigation<any>();
+  const { notifications, unreadCount, refreshing, refresh, markAsRead, markAllAsRead, clearAll } = useNotifications();
+  const open = async (notification: AppNotification) => {
+    await markAsRead(notification.id);
+    if (notification.queueId) navigation.navigate("MainTabs", { screen: "MyQueues" });
   };
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "queue":
-        return "clock-outline";
-      case "alert":
-        return "alert-circle-outline";
-      case "general":
-        return "information-outline";
-      default:
-        return "bell-outline";
-    }
-  };
-
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case "queue":
-        return "#17a2b8";
-      case "alert":
-        return "#dc3545";
-      case "general":
-        return "#6c757d";
-      default:
-        return "#000";
-    }
-  };
-
-  return (
-    <View style={{ flex: 1, backgroundColor: "white" }}>
-      {/* Header */}
-
-      {/* Notifications List */}
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
-      >
-        {notifications.length === 0 ? (
-          <View
-            style={{
-              flex: 1,
-              justifyContent: "center",
-              alignItems: "center",
-              paddingVertical: 60,
-            }}
-          >
-            <IconButton
-              icon="bell-outline"
-              size={64}
-              iconColor="#d1d5db"
-              style={{ margin: 0 }}
-            />
-            <Text
-              style={{
-                fontSize: 16,
-                color: "#9ca3af",
-                marginTop: 16,
-                textAlign: "center",
-              }}
-            >
-              No notifications yet
-            </Text>
-          </View>
-        ) : (
-          notifications.map((notification) => (
-            <Card
-              key={notification.id}
-              style={{
-                marginBottom: 12,
-                backgroundColor: notification.read ? "#ffffff" : "#f0f9ff",
-                borderWidth: 1,
-                borderColor: notification.read ? "#e5e7eb" : "#bfdbfe",
-              }}
-              onPress={() => markAsRead(notification.id)}
-            >
-              <Card.Content>
-                <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-                  {/* Icon */}
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: `${getNotificationColor(notification.type)}20`,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    <IconButton
-                      icon={getNotificationIcon(notification.type)}
-                      size={20}
-                      iconColor={getNotificationColor(notification.type)}
-                      style={{ margin: 0, padding: 0 }}
-                    />
-                  </View>
-
-                  {/* Content */}
-                  <View style={{ flex: 1 }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 4,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 15,
-                          fontWeight: notification.read ? "500" : "700",
-                          color: "#111827",
-                        }}
-                      >
-                        {notification.title}
-                      </Text>
-                      {!notification.read && (
-                        <View
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 4,
-                            backgroundColor: "#17a2b8",
-                          }}
-                        />
-                      )}
-                    </View>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: "#6b7280",
-                        lineHeight: 20,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {notification.message}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: "#9ca3af",
-                      }}
-                    >
-                      {notification.time}
-                    </Text>
-                  </View>
-                </View>
-              </Card.Content>
-            </Card>
-          ))
-        )}
-      </ScrollView>
-    </View>
-  );
+  const confirmClear = () => Alert.alert("Clear notifications?", "This removes all notifications from this device.", [{ text: "Keep", style: "cancel" }, { text: "Clear", style: "destructive", onPress: clearAll }]);
+  return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <ScreenHeader title="Notifications" subtitle={unreadCount ? `${unreadCount} unread update${unreadCount === 1 ? "" : "s"}` : "You’re all caught up"} onBack={() => navigation.goBack()} right={<TouchableOpacity disabled={!unreadCount} onPress={markAllAsRead} style={{ paddingVertical: 8, paddingLeft: 10 }}><Text style={{ color: unreadCount ? colors.primary : colors.disabled, fontSize: 12, fontWeight: "800" }}>Read all</Text></TouchableOpacity>} />
+    <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} colors={[colors.primary]} />} contentContainerStyle={{ padding: 16, paddingBottom: 36, flexGrow: 1 }}>
+      {notifications.length === 0 ? <View style={{ flex: 1, minHeight: 500, alignItems: "center", justifyContent: "center", paddingHorizontal: 30 }}><View style={{ width: 82, height: 82, borderRadius: 41, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }}><Ionicons name="notifications-outline" size={38} color={colors.primary} /></View><Text style={{ color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 18 }}>No updates yet</Text><Text style={{ color: colors.textMuted, fontSize: 13, textAlign: "center", lineHeight: 20, marginTop: 7 }}>Queue position, ready-to-serve and cancellation alerts will appear here.</Text><TouchableOpacity onPress={refresh} style={{ marginTop: 18, paddingHorizontal: 20, height: 44, borderRadius: radius.pill, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center" }}><Ionicons name="refresh" size={17} color="#FFFFFF" /><Text style={{ color: "#FFFFFF", fontWeight: "800", marginLeft: 7 }}>Check for updates</Text></TouchableOpacity></View>
+      : <>{notifications.map((item) => { const style = appearance(item.type); return <TouchableOpacity key={item.id} onPress={() => open(item)} activeOpacity={0.78} style={{ padding: 15, marginBottom: 10, borderRadius: radius.medium, backgroundColor: item.read ? colors.surface : "#F4FBFD", borderWidth: 1, borderColor: item.read ? colors.border : "#B8DAE4", flexDirection: "row", ...cardShadow }}><View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: style.background, alignItems: "center", justifyContent: "center" }}><Ionicons name={style.icon} size={22} color={style.color} /></View><View style={{ flex: 1, marginLeft: 12 }}><View style={{ flexDirection: "row", alignItems: "center" }}><Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: 15, fontWeight: item.read ? "700" : "900" }}>{item.title}</Text>{!item.read && <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: colors.danger, marginLeft: 8 }} />}</View><Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 4 }}>{item.message}</Text><Text style={{ color: style.color, fontSize: 10, fontWeight: "700", marginTop: 7 }}>{relativeTime(item.createdAt)}</Text></View></TouchableOpacity>; })}<TouchableOpacity onPress={confirmClear} style={{ alignSelf: "center", padding: 12 }}><Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: "700" }}>Clear all notifications</Text></TouchableOpacity></>}
+    </ScrollView>
+  </View>;
 }

@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { Chip } from "react-native-paper";
+import { colors } from '../src/themes/design';
 
 interface TabSelectorProps {
   activeTab: "active" | "history";
@@ -13,15 +14,16 @@ export default function TabSelector({
   activeCount = 0 
 }: TabSelectorProps) {
   return (
-    <View style={{ backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingHorizontal: 16, paddingVertical: 12 }}>
-      <View style={{ flexDirection: "row", gap: 10, marginLeft: 15 }}>
+    <View style={{ backgroundColor: colors.background, paddingHorizontal: 16, paddingVertical: 14 }}>
+      <View style={{ flexDirection: "row", gap: 10 }}>
         <Chip
           selected={activeTab === "active"}
           showSelectedCheck={false}
           onPress={() => onTabChange("active")}
           mode="flat"
           style={{
-            backgroundColor: activeTab === "active" ? "#17a2b8" : "#f5f5f5",
+            backgroundColor: activeTab === "active" ? colors.primary : "#FFFFFF",
+            borderWidth: 1, borderColor: activeTab === 'active' ? colors.primary : colors.border,
           }}
           textStyle={{
             color: activeTab === "active" ? "white" : "#666",
@@ -37,7 +39,8 @@ export default function TabSelector({
           onPress={() => onTabChange("history")}
           mode="flat"
           style={{
-            backgroundColor: activeTab === "history" ? "#17a2b8" : "#f5f5f5",
+            backgroundColor: activeTab === "history" ? colors.primary : "#FFFFFF",
+            borderWidth: 1, borderColor: activeTab === 'history' ? colors.primary : colors.border,
           }}
           textStyle={{
             color: activeTab === "history" ? "white" : "#666",

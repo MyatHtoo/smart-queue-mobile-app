@@ -1,353 +1,83 @@
-import { ScrollView, View, Text, Image, Alert, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
-import { TextInput, Button, IconButton, Chip } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useState, useRef } from "react";
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import TableTypeSelector from "../../components/TableTypeSelector";
 import { useUser } from "../../src/contexts/UserContext";
 import { createQueue, getCustomerQueues } from "../../src/services/api";
 import { getQueueStatus, isFinishedQueueStatus } from "../../src/utils/LiveQueue";
+import { tableTypesFromShop, type TableTypeOption } from "../../src/utils/TableTypes";
+import { cardShadow, colors, radius } from "../../src/themes/design";
+
+const queueItems = (response: any) => {
+  const data = response?.data ?? response;
+  return Array.isArray(data) ? data : Array.isArray(data?.queues) ? data.queues : Array.isArray(data?.data) ? data.data : [];
+};
+
+function SectionTitle({ step, title, subtitle }: { step: number; title: string; subtitle: string }) {
+  return <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}><View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "900" }}>{step}</Text></View><View style={{ flex: 1, marginLeft: 10 }}><Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>{title}</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{subtitle}</Text></View></View>;
+}
 
 export default function JoinQueue() {
   const navigation = useNavigation();
-  const route = useRoute();
-  const restaurant = (route.params as any)?.restaurant;
-  const scrollViewRef = useRef<ScrollView>(null);
+  const restaurant = (useRoute().params as any)?.restaurant;
   const { userData } = useUser();
-
-  const [activeTab, setActiveTab] = useState<"active" | "history">("active");
-  const [partySize, setPartySize] = useState(2);
-  const [queueType, setQueueType] = useState<"1-2" | "3-4" | "5-8">("1-2");
+  const scrollRef = useRef<ScrollView>(null);
+  const tableTypes = useMemo(() => tableTypesFromShop(restaurant), [restaurant]);
+  const firstAvailable = tableTypes.find((item) => item.available);
+  const [selected, setSelected] = useState<TableTypeOption | undefined>(firstAvailable);
+  const [partySize, setPartySize] = useState(firstAvailable?.minGuests ?? 1);
   const [notes, setNotes] = useState("");
   const [joining, setJoining] = useState(false);
 
-  const handleJoinQueue = async () => {
-    if (!partySize || partySize < 1) {
-      Alert.alert("Error", "Please enter a valid party size");
-      return;
-    }
+  const selectTable = (option: TableTypeOption) => { setSelected(option); setPartySize(Math.max(option.minGuests, Math.min(partySize, option.maxGuests))); };
+  const changeGuests = (change: number) => selected && setPartySize((current) => Math.max(selected.minGuests, Math.min(selected.maxGuests, current + change)));
 
-    const shopId = restaurant?.id || restaurant?._id || restaurant?.shop_id;
-    const customerId = userData.id;
-    const tableTypes = Array.isArray(restaurant?.tableTypes) ? restaurant.tableTypes : [];
-    const selectedIndex = queueType === "1-2" ? 0 : queueType === "3-4" ? 1 : 2;
-    const maximumGuests = selectedIndex === 0 ? 2 : selectedIndex === 1 ? 4 : 8;
-    const tableType = tableTypes.find((type: any) => {
-      const label = String(type?.name || type?.title || type?.type || type?.tableType || "");
-      const capacity = Number(
-        type?.maxCapacity || type?.maximumCapacity || type?.capacity || type?.seats || type?.maxGuests
-      );
-      return label.includes(queueType) || capacity === maximumGuests;
-    }) || tableTypes[selectedIndex];
-    const tableTypeId = tableType?._id || tableType?.id || tableType?.table_type_id;
-
-    if (!customerId) {
-      Alert.alert("Login required", "Please log in again before joining a queue.");
-      return;
-    }
-    if (!shopId || !tableTypeId) {
-      Alert.alert("Queue unavailable", "This shop does not have a table type configured for the selected party size.");
-      return;
-    }
+  const joinQueue = async () => {
+    if (restaurant?.isWithinServiceArea !== true) return Alert.alert("Outside service area", "You must be within 1 km of this shop to join its queue.");
+    if (!userData.id) return Alert.alert("Login required", "Please sign in again before joining.");
+    if (!selected) return Alert.alert("Choose a table", "This shop has no available table type right now.");
+    if (partySize < selected.minGuests || partySize > selected.maxGuests) return Alert.alert("Invalid party size", `This table supports ${selected.minGuests}–${selected.maxGuests} guests.`);
+    const shopId = restaurant?.id ?? restaurant?._id ?? restaurant?.shop_id;
+    if (!shopId) return Alert.alert("Shop unavailable", "The shop ID is missing. Please refresh and try again.");
 
     try {
       setJoining(true);
-      // The backend should enforce this too, but check here first so the user
-      // gets immediate feedback and cannot accidentally create duplicate queues.
-      const existingResponse: any = await getCustomerQueues(String(customerId));
-      const existingData = existingResponse?.data ?? existingResponse;
-      const existingQueues = Array.isArray(existingData)
-        ? existingData
-        : existingData?.queues ?? existingData?.data ?? [];
-      const hasActiveQueue = (Array.isArray(existingQueues) ? existingQueues : []).some((queue: any) => {
-        const status = getQueueStatus(queue);
-        return !isFinishedQueueStatus(status) && !['cancelled', 'canceled', 'completed', 'expired', 'served'].includes(status);
-      });
-      if (hasActiveQueue) {
-        Alert.alert('Active queue already exists', 'Cancel your current queue before joining another one.');
-        return;
-      }
-
-      const queueResponse = await createQueue({
-        shop_id: String(shopId),
-        customer_id: String(customerId),
-        table_type_id: String(tableTypeId),
-        userRequirements: notes.trim(),
-      });
-
-      (navigation.navigate as any)('QueueConfirm', {
-        queueData: {
-          restaurant,
-          phone: userData.phoneNumber,
-          partySize,
-          queueType,
-          notes: notes.trim(),
-          queue: queueResponse?.data ?? queueResponse,
-        },
-      });
-    } catch (error: any) {
-      Alert.alert("Unable to join queue", error?.message || "Please try again.");
-    } finally {
-      setJoining(false);
-    }
+      const existing = queueItems(await getCustomerQueues(String(userData.id))).some((queue: any) => !isFinishedQueueStatus(getQueueStatus(queue)));
+      if (existing) return Alert.alert("Active queue already exists", "Cancel or complete your current queue before joining another one.");
+      const response = await createQueue({ shop_id: String(shopId), customer_id: String(userData.id), table_type_id: selected.id, userRequirements: notes.trim() });
+      (navigation.navigate as any)("QueueConfirm", { queueData: { restaurant, phone: userData.phoneNumber, partySize, queueType: selected.name, tableTypeId: selected.id, notes: notes.trim(), queue: response?.data ?? response } });
+    } catch (error: any) { Alert.alert("Unable to join queue", error?.message || "Please try again."); }
+    finally { setJoining(false); }
   };
 
-  const incrementGuests = () => {
-    const maxGuests = queueType === "1-2" ? 2 : queueType === "3-4" ? 4 : 8;
-    if (partySize < maxGuests) {
-      setPartySize(partySize + 1);
-    }
-  };
+  return <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, paddingBottom: 36 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <View style={{ backgroundColor: colors.surface, borderRadius: radius.large, padding: 14, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.border, ...cardShadow }}>
+        <Image source={restaurant?.image} style={{ width: 68, height: 68, borderRadius: 16, backgroundColor: colors.primarySoft }} resizeMode="cover" />
+        <View style={{ flex: 1, marginLeft: 12 }}><Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }} numberOfLines={1}>{restaurant?.name || "Shop"}</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }} numberOfLines={1}>{restaurant?.shopType || restaurant?.cuisine || "Restaurant"}</Text><View style={{ flexDirection: "row", alignItems: "center", marginTop: 7 }}><Ionicons name="location" size={14} color={colors.success} /><Text style={{ color: colors.success, fontSize: 12, fontWeight: "800", marginLeft: 4 }}>{restaurant?.distance} away</Text><Text style={{ color: colors.textMuted, fontSize: 12 }}>  •  {restaurant?.waitInfo || 0} waiting</Text></View></View>
+      </View>
 
-  const decrementGuests = () => {
-    if (partySize > 1) {
-      setPartySize(partySize - 1);
-    }
-  };
+      <View style={{ flexDirection: "row", alignItems: "center", padding: 12, backgroundColor: colors.successSoft, borderRadius: radius.medium, marginTop: 14 }}><Ionicons name="shield-checkmark" size={21} color={colors.success} /><View style={{ flex: 1, marginLeft: 9 }}><Text style={{ color: "#166534", fontWeight: "800", fontSize: 13 }}>Location verified</Text><Text style={{ color: "#15803D", fontSize: 11, marginTop: 2 }}>Within the 1 km queue service area</Text></View></View>
 
-  const handleQueueTypeChange = (type: "1-2" | "3-4" | "5-8") => {
-    setQueueType(type);
-    const maxGuests = type === "1-2" ? 2 : type === "3-4" ? 4 : 8;
-    setPartySize(maxGuests);
-  };
+      <View style={{ marginTop: 24 }}><SectionTitle step={1} title="Choose a table" subtitle="Live table types provided by this shop" />
+        {tableTypes.length ? <TableTypeSelector options={tableTypes} selectedId={selected?.id} onSelect={selectTable} /> : <View style={{ padding: 20, borderRadius: radius.medium, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}><Ionicons name="alert-circle-outline" size={28} color={colors.warning} /><Text style={{ color: colors.text, fontWeight: "800", marginTop: 8 }}>No table types available</Text><Text style={{ color: colors.textMuted, fontSize: 12, textAlign: "center", marginTop: 4 }}>The shop has not configured seating options yet.</Text></View>}
+      </View>
 
-  return (
-
-    <KeyboardAvoidingView
-      style={{ flex: 1,backgroundColor:'white' }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={10}
-    
-    >
-      <ScrollView
-        ref={scrollViewRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-
-        {/* Restaurant Info */}
-        {restaurant && (
-          <View
-            style={{
-              backgroundColor: "#f9fafb",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 24,
-              flexDirection: "row",
-              alignItems: "center",
-              borderColor: '#17a2b8',
-              borderWidth: 1,
-            }}
-          >
-            <Image
-              source={restaurant.image}
-              style={{
-                width: 60,
-                height: 60,
-                borderRadius: 8,
-                marginRight: 12,
-              }}
-              resizeMode="cover"
-            />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{ fontSize: 16, fontWeight: "bold", color: "#111827" }}
-              >
-                {restaurant.name}
-              </Text>
-              <Text style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}>
-                {restaurant.cuisine} • {restaurant.distance}
-              </Text>
-              <Text style={{ fontSize: 14, color: "#17a2b8", marginTop: 4 }}>
-                Current wait: ~{restaurant.waitInfo} people
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Form Section */}
-        <View>
-          {/* Queue Type */}
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: "#111827",
-              marginBottom: 12,
-            }}
-          >
-            Queue Type
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              marginBottom: 24,
-              gap: 12,
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => handleQueueTypeChange("1-2")}
-              style={{
-                flex: 1,
-                borderWidth: 2,
-                borderColor: queueType === "1-2" ? "#17a2b8" : "#e5e7eb",
-                borderRadius: 12,
-                padding: 16,
-                alignItems: "center",
-                backgroundColor: queueType === "1-2" ? "#f0f9ff" : "white",
-              }}
-            >
-              <IconButton
-                icon="seat"
-                size={32}
-                iconColor={queueType === "1-2" ? "#17a2b8" : "#6b7280"}
-                style={{ margin: 0 }}
-              />
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: queueType === "1-2" ? "#17a2b8" : "#6b7280",
-                  marginTop: 4,
-                  fontWeight: queueType === "1-2" ? "600" : "400",
-                }}
-              >
-                1-2 people
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => handleQueueTypeChange("3-4")}
-              style={{
-                flex: 1,
-                borderWidth: 2,
-                borderColor: queueType === "3-4" ? "#17a2b8" : "#e5e7eb",
-                borderRadius: 12,
-                padding: 16,
-                alignItems: "center",
-                backgroundColor: queueType === "3-4" ? "#f0f9ff" : "white",
-              }}
-            >
-              <View style={{ flexDirection: "row" }}>
-                <IconButton
-                  icon="seat"
-                  size={32}
-                  iconColor={queueType === "3-4" ? "#17a2b8" : "#6b7280"}
-                  style={{ margin: 0 }}
-                />
-              </View>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: queueType === "3-4" ? "#17a2b8" : "#6b7280",
-                  marginTop: 4,
-                  fontWeight: queueType === "3-4" ? "600" : "400",
-                }}
-              >
-                3-4 people
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => handleQueueTypeChange("5-8")}
-              style={{
-                flex: 1,
-                borderWidth: 2,
-                borderColor: queueType === "5-8" ? "#17a2b8" : "#e5e7eb",
-                borderRadius: 12,
-                padding: 16,
-                alignItems: "center",
-                backgroundColor: queueType === "5-8" ? "#f0f9ff" : "white",
-              }}
-            >
-              <View style={{ flexDirection: "row" }}>
-                <IconButton
-                  icon="seat"
-                  size={32}
-                  iconColor={queueType === "5-8" ? "#17a2b8" : "#6b7280"}
-                  style={{ margin: 0 }}
-                />
-              </View>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: queueType === "5-8" ? "#17a2b8" : "#6b7280",
-                  marginTop: 4,
-                  fontWeight: queueType === "5-8" ? "600" : "400",
-                }}
-              >
-                5-8 people
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Special Requirements */}
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: "#111827",
-              marginBottom: 12,
-            }}
-          >
-            Special Requirements (Optional)
-          </Text>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            onFocus={() => {
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 300);
-            }}
-            mode="outlined"
-            multiline
-            numberOfLines={20}
-            style={{ marginBottom: 24, height: 100, backgroundColor: "white" }}
-            outlineColor="#e5e7eb"
-            activeOutlineColor="#17a2b8"
-            placeholder="E.g. High chair needed, window seat..."
-          />
-
-          <View style={{ gap: 12 ,marginBottom:30}}>
-            {/* Join Queue Button */}
-            <Button
-              mode="contained"
-              onPress={handleJoinQueue}
-              loading={joining}
-              disabled={joining}
-              style={{
-                backgroundColor: "#17a2b8",
-                borderRadius: 25,
-                paddingVertical: 8,
-              }}
-              contentStyle={{ height: 40 }}
-              labelStyle={{ fontSize: 16, fontWeight: "600" }}
-            >
-              {joining ? "Joining..." : "Join Queue"}
-            </Button>
-
-            {/* Cancel Button */}
-            <Button
-              mode="contained"
-              onPress={() => navigation.goBack()}
-              style={{
-                backgroundColor: "white",
-                borderRadius: 25,
-                paddingVertical: 8,
-                borderWidth: 1,
-                borderColor: "#e5e7eb",
-              }}
-              contentStyle={{ height: 40 }}
-              labelStyle={{ fontSize: 16, fontWeight: "600" }}
-              textColor="#6b7280"
-            >
-              Cancel
-            </Button>
-          </View>
+      <View style={{ marginTop: 24 }}><SectionTitle step={2} title="Party size" subtitle={selected ? `Choose ${selected.minGuests}–${selected.maxGuests} guests for ${selected.name}` : "Select a table first"} />
+        <View style={{ height: 76, borderRadius: radius.medium, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18 }}>
+          <TouchableOpacity disabled={!selected || partySize <= selected.minGuests} onPress={() => changeGuests(-1)} style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: !selected || partySize <= selected.minGuests ? "#F1F5F9" : colors.primarySoft }}><Ionicons name="remove" size={22} color={!selected || partySize <= selected.minGuests ? colors.disabled : colors.primary} /></TouchableOpacity>
+          <View style={{ alignItems: "center" }}><Text style={{ color: colors.text, fontSize: 27, fontWeight: "900" }}>{partySize}</Text><Text style={{ color: colors.textMuted, fontSize: 11 }}>{partySize === 1 ? "guest" : "guests"}</Text></View>
+          <TouchableOpacity disabled={!selected || partySize >= selected.maxGuests} onPress={() => changeGuests(1)} style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: !selected || partySize >= selected.maxGuests ? "#F1F5F9" : colors.primarySoft }}><Ionicons name="add" size={22} color={!selected || partySize >= selected.maxGuests ? colors.disabled : colors.primary} /></TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+      </View>
+
+      <View style={{ marginTop: 24 }}><SectionTitle step={3} title="Special requests" subtitle="Optional notes for the shop" /><View style={{ backgroundColor: colors.surface, borderRadius: radius.medium, borderWidth: 1, borderColor: colors.border, padding: 12 }}><TextInput value={notes} onChangeText={(value) => setNotes(value.slice(0, 200))} onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)} multiline placeholder="High chair, accessibility support, seating preference..." placeholderTextColor={colors.textMuted} style={{ color: colors.text, fontSize: 14, minHeight: 82, textAlignVertical: "top" }} /><Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>{notes.length}/200</Text></View></View>
+
+      <View style={{ marginTop: 22, padding: 15, borderRadius: radius.medium, backgroundColor: colors.primarySoft }}><Text style={{ color: colors.primary, fontSize: 12, fontWeight: "800" }}>QUEUE SUMMARY</Text><View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 9 }}><Text style={{ color: colors.textMuted, fontSize: 13 }}>Table</Text><Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>{selected?.name || "Not selected"}</Text></View><View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 7 }}><Text style={{ color: colors.textMuted, fontSize: 13 }}>Party size</Text><Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>{partySize} guests</Text></View><View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 7 }}><Text style={{ color: colors.textMuted, fontSize: 13 }}>People waiting</Text><Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>{restaurant?.waitInfo || 0}</Text></View></View>
+
+      <TouchableOpacity disabled={joining || !selected} onPress={joinQueue} activeOpacity={0.82} style={{ height: 54, borderRadius: radius.pill, backgroundColor: joining || !selected ? colors.disabled : colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 20 }}><Ionicons name={joining ? "hourglass-outline" : "ticket-outline"} size={20} color="#FFFFFF" /><Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginLeft: 8 }}>{joining ? "Joining queue..." : "Confirm & join queue"}</Text></TouchableOpacity>
+      <TouchableOpacity disabled={joining} onPress={() => navigation.goBack()} style={{ height: 46, alignItems: "center", justifyContent: "center" }}><Text style={{ color: colors.textMuted, fontWeight: "700" }}>Cancel</Text></TouchableOpacity>
+    </ScrollView>
+  </KeyboardAvoidingView>;
 }

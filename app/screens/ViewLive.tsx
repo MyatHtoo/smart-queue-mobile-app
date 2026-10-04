@@ -126,7 +126,7 @@ export default function ViewLive() {
   const getStatusColor = () => {
     switch (liveQueue.queueStatus) {
       case "active":
-        return "#17a2b8";
+        return "#1E7A9B";
       case "paused":
         return "#FF9800";
       case "closed":
@@ -159,7 +159,7 @@ export default function ViewLive() {
       <ScrollView
         style={{ flex: 1 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#17a2b8" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1E7A9B" />
         }
       >
         <View style={{ padding: 16 }}>
@@ -174,11 +174,11 @@ export default function ViewLive() {
                   {restaurant?.cuisine || "Cuisine Type"}
                 </Text>
               </View>
-              <View style={{ backgroundColor: "#f0f9ff", borderRadius: 50, padding: 8 }}>
+              <View style={{ backgroundColor: "#EAF5F8", borderRadius: 50, padding: 8 }}>
                 <IconButton
                   icon="store"
                   size={24}
-                  iconColor="#17a2b8"
+                  iconColor="#1E7A9B"
                   style={{ margin: 0 }}
                 />
               </View>
@@ -212,7 +212,7 @@ export default function ViewLive() {
           )}
 
           {/* Queue Number Display */}
-          <Text style={{ fontSize: 48, fontWeight: "bold", color: "#17a2b8", textAlign: "center", marginBottom: 8 }}>
+          <Text style={{ fontSize: 48, fontWeight: "bold", color: "#1E7A9B", textAlign: "center", marginBottom: 8 }}>
             {liveQueue.yourNumber}
           </Text>
           <Text style={{ fontSize: 20, fontWeight: "bold", color: "#111827", textAlign: "center", marginBottom: 4 }}>
@@ -229,7 +229,7 @@ export default function ViewLive() {
                 <Text style={{ color: "#111827", fontSize: 16, fontWeight: "600" }}>
                   Queue Progress
                 </Text>
-                <Text style={{ color: "#17a2b8", fontSize: 18, fontWeight: "bold" }}>
+                <Text style={{ color: "#1E7A9B", fontSize: 18, fontWeight: "bold" }}>
                   {Math.round(progress * 100)}%
                 </Text>
               </View>
@@ -238,7 +238,7 @@ export default function ViewLive() {
                   style={{ 
                     width: `${progress * 100}%`,
                     height: "100%",
-                    backgroundColor: "#17a2b8",
+                    backgroundColor: "#1E7A9B",
                     borderRadius: 10,
                   }}
                 />
@@ -259,15 +259,15 @@ export default function ViewLive() {
                   <Text style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
                     Now Serving
                   </Text>
-                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#17a2b8" }}>
+                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>
                     {liveQueue.currentServing}
                   </Text>
                 </View>
-                <View style={{ backgroundColor: "#f0f9ff", borderRadius: 50, padding: 12 }}>
+                <View style={{ backgroundColor: "#EAF5F8", borderRadius: 50, padding: 12 }}>
                   <IconButton
                     icon="account-check"
                     size={32}
-                    iconColor="#17a2b8"
+                    iconColor="#1E7A9B"
                     style={{ margin: 0 }}
                   />
                 </View>
@@ -281,15 +281,15 @@ export default function ViewLive() {
                   <Text style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
                     People in Front
                   </Text>
-                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#17a2b8" }}>
+                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>
                     {liveQueue.peopleInFront}
                   </Text>
                 </View>
-                <View style={{ backgroundColor: "#f0f9ff", borderRadius: 50, padding: 12 }}>
+                <View style={{ backgroundColor: "#EAF5F8", borderRadius: 50, padding: 12 }}>
                   <IconButton
                     icon="account-multiple"
                     size={32}
-                    iconColor="#17a2b8"
+                    iconColor="#1E7A9B"
                     style={{ margin: 0 }}
                   />
                 </View>
@@ -303,7 +303,7 @@ export default function ViewLive() {
                   <Text style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
                     Estimated Wait Time
                   </Text>
-                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#17a2b8" }}>
+                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>
                     {liveQueue.estimatedWaitTime} <Text style={{ fontSize: 20 }}>min</Text>
                   </Text>
                   <Text style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
@@ -312,11 +312,11 @@ export default function ViewLive() {
                       : 'Next in line'}
                   </Text>
                 </View>
-                <View style={{ backgroundColor: "#f0f9ff", borderRadius: 50, padding: 12 }}>
+                <View style={{ backgroundColor: "#EAF5F8", borderRadius: 50, padding: 12 }}>
                   <IconButton
                     icon="clock-outline"
                     size={32}
-                    iconColor="#17a2b8"
+                    iconColor="#1E7A9B"
                     style={{ margin: 0 }}
                   />
                 </View>
@@ -378,7 +378,7 @@ export default function ViewLive() {
               mode="contained"
               onPress={onRefresh}
               icon="refresh"
-              buttonColor="#17a2b8"
+              buttonColor="#1E7A9B"
               style={{ borderRadius: 12, marginBottom: 12 }}
               contentStyle={{ paddingVertical: 8 }}
               labelStyle={{ fontSize: 16, fontWeight: "600" }}

@@ -1,29 +1,31 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Entypo, Ionicons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { IconButton } from "react-native-paper";
 import HomePage from '../../app/screens/HomePage';
 import MyQueue from '../../app/screens/MyQueue';
 import QR from '../../app/screens/QR';
+import LiveLocationScreen from '../../app/screens/LiveLocationScreen';
+import { colors } from '../themes/design';
+import { useNotifications } from '../contexts/NotificationContext';
 
 
 const Tab = createBottomTabNavigator();
-
-function EmptyScreen() {
-    return null;
-}
+const LiveLocationTab = () => <LiveLocationScreen embedded />;
 
 export default function BottomTabs() {
     const navigation = useNavigation();
+    const { unreadCount } = useNotifications();
     return (
         <Tab.Navigator
             initialRouteName="HomePage"
             screenOptions={{
                 headerShown: false,
-                tabBarActiveTintColor: "#2563EB",
-                tabBarInactiveTintColor: "#9CA3AF",
-                tabBarStyle: { height: 70 }
+                tabBarActiveTintColor: colors.primary,
+                tabBarInactiveTintColor: colors.textMuted,
+                tabBarHideOnKeyboard: true,
+                tabBarStyle: { height: 72, paddingTop: 7, paddingBottom: 8, borderTopColor: colors.border, backgroundColor: '#FFFFFF' }
             }}>
 
             <Tab.Screen
@@ -45,7 +47,7 @@ export default function BottomTabs() {
                     ),
                     headerShown: true,
                     header: ({ navigation }) => (
-                        <View style={{ paddingTop: 28, backgroundColor: 'white' }}>
+                        <View style={{ paddingTop: 28, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: colors.border }}>
                             <View
                                 style={{
                                     flexDirection: 'row',
@@ -60,23 +62,29 @@ export default function BottomTabs() {
                                     icon="menu"
                                     size={24}
                                     onPress={() => navigation.navigate("AccountView" as never)}
-                                    iconColor="#000"
+                                    iconColor={colors.text}
                                     style={{ margin: 0, padding: 0 }}
                                 />
-                                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>
+                                <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>
                                     Smart Queue
                                 </Text>
-                                <IconButton
-                                    icon="bell-outline"
-                                    size={24}
-                                    onPress={() => navigation.navigate("Screens", { screen: "Notifications" })}
-                                    iconColor="#000"
-                                    style={{ margin: 0, padding: 0 }}
-                                />
+                                <TouchableOpacity onPress={() => navigation.navigate("Screens", { screen: "Notifications" })} activeOpacity={0.75} style={{ width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }}>
+                                    <Ionicons name={unreadCount ? "notifications" : "notifications-outline"} size={24} color={colors.text} />
+                                    {unreadCount > 0 && <View style={{ position: 'absolute', right: 1, top: 1, minWidth: 19, height: 19, paddingHorizontal: 4, borderRadius: 10, backgroundColor: colors.danger, borderWidth: 2, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View>}
+                                </TouchableOpacity>
                             </View>
                         </View>
                     ),
                 }} />
+
+            <Tab.Screen
+                name="LiveMap"
+                component={LiveLocationTab}
+                options={{
+                    tabBarIcon: ({ focused, color, size }) => <Ionicons name={focused ? "map" : "map-outline"} size={focused ? size + 2 : size} color={color} />,
+                    tabBarLabel: ({ focused, color }) => <Text style={{ color, fontSize: focused ? 13 : 12, fontWeight: focused ? "600" : "400" }}>Map</Text>,
+                }}
+            />
 
             <Tab.Screen
                 name="QRScan"
@@ -92,7 +100,7 @@ export default function BottomTabs() {
                                 fontSize: focused ? 13 : 12,
                                 fontWeight: focused ? "600" : "400",
                             }}>
-                            QR Scan
+                            Scan
                         </Text>
                     ),
                     headerShown: true,

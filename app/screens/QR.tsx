@@ -1,301 +1,109 @@
-import { View, Text, StyleSheet, Alert } from "react-native";
-import { Provider as PaperProvider, IconButton, Button } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useState } from 'react';
+import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { getCustomerQueues, scanQueueQr } from "../../src/services/api";
 import { useUser } from "../../src/contexts/UserContext";
 import { getQueueStatus, isFinishedQueueStatus } from "../../src/utils/LiveQueue";
+import { parseQueueQr, queueIdFrom, queueQrFrom } from "../../src/utils/QueueQr";
+import { cardShadow, colors, radius } from "../../src/themes/design";
 
-type QueueQrData = {
-  queueId?: string;
-  queueQr: string;
+type ScanState = "idle" | "verifying" | "success" | "error";
+const itemsFrom = (response: any): any[] => {
+  const data = response?.data ?? response;
+  return Array.isArray(data) ? data : Array.isArray(data?.queues) ? data.queues : Array.isArray(data?.data) ? data.data : [];
+};
+const isActive = (queue: any) => {
+  const status = getQueueStatus(queue);
+  return !isFinishedQueueStatus(status) && !["cancelled", "canceled", "completed", "expired", "served"].includes(status);
 };
 
-const getQueueDataFromQr = (data: string): QueueQrData => {
-  const scannedValue = data.trim();
-  const fallback: QueueQrData = { queueQr: scannedValue };
-
-  try {
-    const decodedValue = decodeURIComponent(scannedValue);
-    const value = JSON.parse(decodedValue);
-    const payload = value?.data ?? value?.result ?? value;
-    const queueObject = payload?.queue ?? payload?.queueData ?? payload;
-    const queueId = String(
-      payload?.queue_id ?? payload?.queueId ?? payload?._id ?? payload?.id ??
-      queueObject?.queue_id ?? queueObject?.queueId ?? queueObject?._id ?? queueObject?.id ?? ""
-    ).trim();
-    const queueQr = String(
-      payload?.queue_qr ?? payload?.queueQr ?? queueObject?.queue_qr ?? queueObject?.queueQr ?? ""
-    ).trim();
-
-    return {
-      queueId: queueId || undefined,
-      queueQr: queueQr || fallback.queueQr,
-    };
-  } catch {
-    try {
-      const url = new URL(scannedValue);
-      const queueId = url.searchParams.get("queue_id") || url.searchParams.get("queueId");
-      const queueQr = url.searchParams.get("queue_qr") || url.searchParams.get("queueQr");
-      return {
-        queueId: queueId?.trim() || undefined,
-        queueQr: queueQr?.trim() || fallback.queueQr,
-      };
-    } catch {
-      return fallback;
-    }
-  }
-};
+function MessageCard({ state, message, onRetry, onQueues }: { state: ScanState; message: string; onRetry: () => void; onQueues: () => void }) {
+  if (state === "idle") return <View style={styles.tip}><Ionicons name="information-circle" size={19} color={colors.primary} /><Text style={styles.tipText}>Use the QR displayed at the shop counter. Your queue will be checked automatically.</Text></View>;
+  const success = state === "success";
+  return <View style={[styles.resultCard, { borderColor: success ? "#BBF7D0" : state === "error" ? "#FECACA" : colors.border }]}>
+    <View style={[styles.resultIcon, { backgroundColor: success ? colors.successSoft : state === "error" ? "#FEF2F2" : colors.primarySoft }]}>{state === "verifying" ? <ActivityIndicator color={colors.primary} /> : <Ionicons name={success ? "checkmark-circle" : "alert-circle"} size={28} color={success ? colors.success : colors.danger} />}</View>
+    <Text style={styles.resultTitle}>{state === "verifying" ? "Verifying queue" : success ? "Check-in successful" : "Could not verify QR"}</Text><Text style={styles.resultMessage}>{message}</Text>
+    {state !== "verifying" && <View style={{ flexDirection: "row", gap: 9, marginTop: 14 }}><TouchableOpacity onPress={onRetry} style={styles.secondaryButton}><Text style={{ color: colors.primary, fontWeight: "800" }}>Scan again</Text></TouchableOpacity>{success && <TouchableOpacity onPress={onQueues} style={styles.primaryButton}><Text style={{ color: "#FFFFFF", fontWeight: "800" }}>My queue</Text></TouchableOpacity>}</View>}
+  </View>;
+}
 
 export default function QR() {
   const navigation = useNavigation();
   const { userData } = useUser();
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [state, setState] = useState<ScanState>("idle");
+  const [message, setMessage] = useState("");
+  const [torch, setTorch] = useState(false);
+  const [activeQueues, setActiveQueues] = useState<any[]>([]);
+  const [loadingQueues, setLoadingQueues] = useState(true);
+  const lock = useRef(false);
 
-  if (!permission) {
-    return (
-      <PaperProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: "white", justifyContent: 'center', alignItems: 'center' }}>
-          <Text>Requesting camera permission...</Text>
-        </SafeAreaView>
-      </PaperProvider>
-    );
-  }
+  const loadQueues = useCallback(async () => {
+    if (!userData.id) { setActiveQueues([]); setLoadingQueues(false); return; }
+    setLoadingQueues(true);
+    try { setActiveQueues(itemsFrom(await getCustomerQueues(userData.id)).filter(isActive)); }
+    catch { setActiveQueues([]); }
+    finally { setLoadingQueues(false); }
+  }, [userData.id]);
+  useFocusEffect(useCallback(() => { lock.current = false; setState("idle"); setMessage(""); loadQueues(); }, [loadQueues]));
+  const reset = () => { lock.current = false; setState("idle"); setMessage(""); };
 
-  if (!permission.granted) {
-    return (
-      <PaperProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: "white", justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
-          <Text style={{ textAlign: 'center', fontSize: 16, color: '#374151', marginBottom: 16 }}>
-            Camera permission is required to scan QR codes.
-          </Text>
-          <Button
-            mode="contained"
-            onPress={requestPermission}
-            style={{ backgroundColor: '#17a2b8', borderRadius: 20 }}
-            labelStyle={{ fontSize: 14, paddingVertical: 4 }}
-          >
-            Grant Permission
-          </Button>
-        </SafeAreaView>
-      </PaperProvider>
-    );
-  }
-
-  const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (scanned || submitting) return;
-
-    setScanned(true);
-    setSubmitting(true);
-
+  const scan = async ({ data }: { data: string }) => {
+    if (lock.current || state !== "idle") return;
+    lock.current = true; setState("verifying"); setMessage("Checking this code against your active queue…");
     try {
-      const scannedValue = data.trim();
-      const { queueId, queueQr } = getQueueDataFromQr(scannedValue);
-      console.log("[QR] Raw scan:", scannedValue);
-      console.log("[QR] Queue ID sent to API:", queueId ?? "(not included)");
-      console.log("[QR] Queue QR sent to API:", queueQr);
-
-      if (!queueQr) {
-        throw new Error("The scanned QR code does not contain a queue QR value.");
+      const parsed = parseQueueQr(data);
+      if (!parsed.queueQr) throw new Error("This QR code does not contain queue information.");
+      let queueId = parsed.queueId && /^[a-f\d]{24}$/i.test(parsed.queueId) ? parsed.queueId : undefined;
+      if (!queueId) {
+        const matching = activeQueues.find((queue) => queueQrFrom(queue) === parsed.queueQr) ?? (activeQueues.length === 1 ? activeQueues[0] : undefined);
+        const resolved = queueIdFrom(matching);
+        if (/^[a-f\d]{24}$/i.test(resolved)) queueId = resolved;
       }
-
-      // Some QR codes contain only the queue_qr value (for example uuid-23410).
-      // The backend can resolve those without requiring a Mongo queue_id.
-      let validQueueId = queueId && /^[a-f\d]{24}$/i.test(queueId) ? queueId : undefined;
-      if (queueId && !validQueueId) {
-        console.warn("[QR] Ignoring malformed queue ID and verifying by queue QR only:", queueId);
+      if (!queueId && userData.id) {
+        const fresh = itemsFrom(await getCustomerQueues(userData.id)).filter(isActive);
+        setActiveQueues(fresh);
+        const matching = fresh.find((queue) => queueQrFrom(queue) === parsed.queueQr) ?? (fresh.length === 1 ? fresh[0] : undefined);
+        const resolved = queueIdFrom(matching);
+        if (/^[a-f\d]{24}$/i.test(resolved)) queueId = resolved;
       }
-
-      // The backend requires queue_id even when the scanned QR contains only
-      // queue_qr. Resolve the UUID from this customer's queues first.
-      if (!validQueueId && userData.id) {
-        const customerResponse: any = await getCustomerQueues(userData.id);
-        const queues = Array.isArray(customerResponse)
-          ? customerResponse
-          : customerResponse?.data ?? customerResponse?.queues ?? customerResponse?.data?.queues ?? [];
-        const matchedQueue = (Array.isArray(queues) ? queues : []).find((queue: any) => {
-          const qr = queue?.queue_qr ?? queue?.queueQr ?? queue?.qr_code ?? queue?.qrCode;
-          const status = getQueueStatus(queue);
-          const active = !isFinishedQueueStatus(status) && !['cancelled', 'canceled', 'completed', 'expired', 'served'].includes(status);
-          return active && String(qr ?? '').trim() === queueQr;
-        });
-        const resolvedId = matchedQueue?.queue_id ?? matchedQueue?.queueId ?? matchedQueue?._id ?? matchedQueue?.id;
-        if (resolvedId && /^[a-f\d]{24}$/i.test(String(resolvedId))) {
-          validQueueId = String(resolvedId);
-          console.log('[QR] Resolved queue ID from customer queues:', validQueueId);
-        }
-      }
-
-      if (!validQueueId) {
-        throw new Error('This QR code is not associated with one of your active queues. Join the queue first, then scan again.');
-      }
-
-      const response = await scanQueueQr({ queueId: validQueueId, queueQr });
-      console.log("[QR] generate-qr response:", JSON.stringify(response));
-      const result = (response as any)?.data ?? response;
-      const verifiedQueueId = result?.queue_id ?? result?.queueId ?? result?.id;
-      const verifiedQueueQr = result?.queue_qr ?? result?.queueQr ?? queueQr;
-      console.log("Scanned QR code result:", result);
-
-      if (!verifiedQueueId) {
-        throw new Error("The scanned QR code did not return a queue ID.");
-      }
-
-      Alert.alert(
-        "QR Code Scanned",
-        `Queue verified: ${verifiedQueueQr}`,
-        [{
-          text: "View My Queue",
-          onPress: () => (navigation.navigate as any)("MyQueues"),
-        }]
-      );
-    } catch (error: any) {
-      console.error("[QR] Scan request failed:", error?.message ?? error);
-      Alert.alert(
-        "Unable to scan QR code",
-        error?.message || "Please make sure this is a valid queue QR code and try again.",
-        [{ text: "Scan Again", onPress: () => setScanned(false) }]
-      );
-    } finally {
-      setSubmitting(false);
-    }
+      if (!queueId) throw new Error("Join an active queue before scanning this shop QR code.");
+      const response: any = await scanQueueQr({ queueId, queueQr: parsed.queueQr });
+      const result = response?.data ?? response;
+      if (!queueIdFrom(result)) throw new Error("The server could not confirm this queue.");
+      setState("success"); setMessage(`Queue ${queueQrFrom(result) || parsed.queueQr} is verified. You are checked in.`); loadQueues();
+    } catch (error: any) { setState("error"); setMessage(error?.message || "Check that this is the correct shop QR code and try again."); }
   };
-  return (
-    <PaperProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>
-        {/* Header */}
-        <View className="bg-white border-b border-gray-200">
-          <View 
-            style={{ 
-              flexDirection: 'row', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              minHeight: 56
-            }}
-          >
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>
-              Scan QR Code
-            </Text>
-            <View style={{ width: 40 }} />
-          </View>
-        </View>
 
-        {/* Content */}
-        <View style={{ flex: 1 }}>
-          {/* Camera View */}
-          <View style={styles.cameraContainer}>
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              barcodeScannerSettings={{
-                barcodeTypes: ["qr"],
-              }}
-              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-            />
-            
-            {/* Scanner Frame Overlay */}
-            <View style={styles.overlay}>
-              <View style={styles.scannerFrame}>
-                {/* Corner borders */}
-                <View style={[styles.corner, styles.topLeft]} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-              </View>
-            </View>
-          </View>
+  if (!permission) return <View style={styles.centerState}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.stateTitle}>Preparing camera</Text><Text style={styles.stateText}>Please wait a moment…</Text></View>;
+  if (!permission.granted) return <View style={styles.centerState}><View style={styles.permissionIcon}><Ionicons name="camera-outline" size={38} color={colors.primary} /></View><Text style={styles.stateTitle}>Camera access needed</Text><Text style={styles.stateText}>Smart Queue uses your camera only to scan the shop’s check-in QR code.</Text><TouchableOpacity onPress={requestPermission} style={[styles.primaryButton, { width: "100%", marginTop: 20 }]}><Text style={{ color: "#FFFFFF", fontWeight: "900" }}>Allow camera access</Text></TouchableOpacity>{permission.canAskAgain === false && <TouchableOpacity onPress={Linking.openSettings} style={{ padding: 15 }}><Text style={{ color: colors.primary, fontWeight: "800" }}>Open phone settings</Text></TouchableOpacity>}</View>;
 
-          {/* Instructions */}
-          <View style={{ padding: 24, backgroundColor: 'white' }}>
-            <Text style={{ 
-              fontSize: 16, 
-              color: '#374151', 
-              textAlign: 'center',
-              lineHeight: 24,
-              marginBottom: 16
-            }}>
-              {submitting
-                ? "Verifying your queue..."
-                : scanned
-                  ? "QR Code scanned successfully!"
-                  : "Position the QR code within the frame to scan"}
-            </Text>
-
-            {scanned && (
-              <Button
-                mode="contained"
-                onPress={() => setScanned(false)}
-                disabled={submitting}
-                style={{ 
-                  backgroundColor: '#17a2b8',
-                  borderRadius: 20,
-                  marginBottom: 8
-                }}
-                labelStyle={{ fontSize: 14, paddingVertical: 4 }}
-              >
-                Scan Again
-              </Button>
-            )}
-
-            
-          </View>
-        </View>
-      </SafeAreaView>
-    </PaperProvider>
-  );
+  const queue = activeQueues[0];
+  const shop = queue?.shop_id ?? queue?.shopId ?? queue?.shop ?? {};
+  const queueNumber = queue?.queue_number ?? queue?.queueNumber ?? queue?.number ?? queue?.queueNo;
+  return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={styles.queueStrip}>{loadingQueues ? <ActivityIndicator color={colors.primary} /> : activeQueues.length ? <><View style={styles.queueIcon}><Ionicons name="ticket" size={20} color={colors.primary} /></View><View style={{ flex: 1, marginLeft: 10 }}><Text style={{ color: colors.text, fontWeight: "800" }} numberOfLines={1}>{shop?.name || queue?.shopName || "Active queue"}</Text><Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>Queue {queueNumber || "—"} • Ready to scan</Text></View><View style={styles.readyBadge}><Text style={{ color: colors.success, fontSize: 11, fontWeight: "800" }}>ACTIVE</Text></View></> : <><Ionicons name="alert-circle-outline" size={21} color={colors.warning} /><Text style={{ flex: 1, color: colors.textMuted, fontSize: 12, lineHeight: 17, marginLeft: 8 }}>No active queue found. Join a nearby shop before scanning.</Text></>}</View>
+    <View style={styles.cameraCard}>
+      <CameraView style={StyleSheet.absoluteFill} facing="back" enableTorch={torch} barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={state === "idle" && activeQueues.length > 0 ? scan : undefined} />
+      <View style={styles.overlay}><View style={styles.scanFrame}><View style={[styles.corner, styles.topLeft]} /><View style={[styles.corner, styles.topRight]} /><View style={[styles.corner, styles.bottomLeft]} /><View style={[styles.corner, styles.bottomRight]} /><View style={styles.scanLine} /></View><Text style={styles.cameraText}>{state === "idle" ? "Align the QR code inside the frame" : state === "verifying" ? "Hold still while we verify" : "Scan paused"}</Text></View>
+      <TouchableOpacity onPress={() => setTorch((value) => !value)} style={[styles.torch, torch && { backgroundColor: colors.primary }]}><Ionicons name={torch ? "flash" : "flash-off"} size={21} color="#FFFFFF" /></TouchableOpacity>
+    </View>
+    <View style={{ padding: 16 }}><MessageCard state={state} message={message} onRetry={reset} onQueues={() => (navigation.navigate as any)("MyQueues")} /></View>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  cameraContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  scannerFrame: {
-    width: 250,
-    height: 250,
-    position: 'relative',
-    backgroundColor: 'transparent',
-  },
-  corner: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderColor: '#17a2b8',
-  },
-  topLeft: {
-    top: -2,
-    left: -2,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-  },
-  topRight: {
-    top: -2,
-    right: -2,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-  },
-  bottomLeft: {
-    bottom: -2,
-    left: -2,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-  },
-  bottomRight: {
-    bottom: -2,
-    right: -2,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-  },
+  centerState: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", paddingHorizontal: 28 },
+  permissionIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", marginBottom: 18 },
+  stateTitle: { color: colors.text, fontSize: 20, fontWeight: "900", marginTop: 16 }, stateText: { color: colors.textMuted, fontSize: 14, lineHeight: 21, textAlign: "center", marginTop: 8 },
+  queueStrip: { minHeight: 70, margin: 16, marginBottom: 12, borderRadius: radius.medium, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 13, flexDirection: "row", alignItems: "center", ...cardShadow },
+  queueIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, readyBadge: { backgroundColor: colors.successSoft, paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill },
+  cameraCard: { flex: 1, minHeight: 360, marginHorizontal: 16, borderRadius: radius.large, overflow: "hidden", backgroundColor: "#0F172A" }, overlay: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(2,6,23,0.48)" },
+  scanFrame: { width: 230, height: 230 }, corner: { position: "absolute", width: 38, height: 38, borderColor: "#FFFFFF" }, topLeft: { left: 0, top: 0, borderLeftWidth: 5, borderTopWidth: 5, borderTopLeftRadius: 12 }, topRight: { right: 0, top: 0, borderRightWidth: 5, borderTopWidth: 5, borderTopRightRadius: 12 }, bottomLeft: { left: 0, bottom: 0, borderLeftWidth: 5, borderBottomWidth: 5, borderBottomLeftRadius: 12 }, bottomRight: { right: 0, bottom: 0, borderRightWidth: 5, borderBottomWidth: 5, borderBottomRightRadius: 12 },
+  scanLine: { position: "absolute", left: 16, right: 16, top: "50%", height: 2, backgroundColor: colors.primary, shadowColor: colors.primary, shadowOpacity: 1, shadowRadius: 8, elevation: 5 }, cameraText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700", marginTop: 28 }, torch: { position: "absolute", right: 14, top: 14, width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(15,23,42,0.72)", alignItems: "center", justifyContent: "center" },
+  tip: { flexDirection: "row", padding: 13, borderRadius: radius.medium, backgroundColor: colors.primarySoft }, tipText: { flex: 1, color: colors.textMuted, fontSize: 12, lineHeight: 18, marginLeft: 8 },
+  resultCard: { padding: 14, borderRadius: radius.medium, backgroundColor: colors.surface, borderWidth: 1, alignItems: "center", ...cardShadow }, resultIcon: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" }, resultTitle: { color: colors.text, fontSize: 16, fontWeight: "900", marginTop: 8 }, resultMessage: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: "center", marginTop: 5 },
+  primaryButton: { flex: 1, minHeight: 44, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 }, secondaryButton: { flex: 1, minHeight: 44, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
 });

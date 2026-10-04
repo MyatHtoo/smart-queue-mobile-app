@@ -9,7 +9,11 @@ export interface Restaurant {
   waitInfo: string;
   image: any;
   shopType?: string;
-  isWithin2km?: boolean;
+  isWithinServiceArea?: boolean;
+  locationAvailable?: boolean;
+  distanceMeters?: number;
+  address?: string;
+  phoneNumber?: string;
   tableTypes?: any[];
 }
 

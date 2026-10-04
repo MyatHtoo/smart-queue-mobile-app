@@ -1,312 +1,50 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Keyboard,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  Platform,
-  TextInput,
-  Alert,
-} from "react-native";
+import { useState } from "react";
+import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import GoogleSignInButton from "../../components/Google";
-import { useUser } from "../../src/contexts/UserContext";
-import { sendPhoneOtp, sendEmailOtp } from "../../src/services/api";
+import { AuthField, AuthShell, PrimaryAuthButton } from "../../components/auth/AuthUI";
+import { sendEmailOtp } from "../../src/services/api";
+import { isValidEmail, normalizeEmail, passwordError } from "../../src/utils/AuthValidation";
+import { colors, radius } from "../../src/themes/design";
 
-type FieldProps = {
-  value: string;
-  onChange: (text: string) => void;
-  error?: string | undefined;
-};
-
-const PhoneFields = ({ value, onChange, error }: FieldProps) => (
-  <View>
-    <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-      Phone Number
-    </Text>
-    <TextInput
-      placeholder="Enter your phone number"
-      value={value}
-      onChangeText={onChange}
-      keyboardType="phone-pad"
-      autoCapitalize="none"
-      editable={true}
-      maxLength={15}
-      style={{
-        backgroundColor: "#F5F5F5",
-        borderRadius: 12,
-        borderColor: error ? "#EF4444" : "#E5E7EB",
-        borderWidth: 1,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        fontSize: 16,
-        color: "#111827",
-      }}
-      placeholderTextColor="#9CA3AF"
-    />
-    {error && <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{error}</Text>}
-  </View>
-);
-
-const EmailFields = ({ value, onChange, error }: FieldProps) => (
-  <View>
-    <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-      Email
-    </Text>
-    <TextInput
-      placeholder="Enter your email"
-      value={value}
-      onChangeText={onChange}
-      keyboardType="email-address"
-      autoCapitalize="none"
-      editable={true}
-      style={{
-        backgroundColor: "#F5F5F5",
-        borderRadius: 12,
-        borderColor: error ? "#EF4444" : "#E5E7EB",
-        borderWidth: 1,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        fontSize: 16,
-        color: "#111827",
-      }}
-      placeholderTextColor="#9CA3AF"
-    />
-    {error && <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{error}</Text>}
-  </View>
-);
+type Errors = { name?: string; email?: string; password?: string; terms?: string };
 
 export default function RegisterPage() {
   const navigation = useNavigation();
-  const { setUserData } = useUser();
-  const [name, setname] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [usePhone, setUsePhone] = useState(true);
-  const [errors, setErrors] = useState<{ name?: string; contact?: string; password?: string }>({});
+  const [accepted, setAccepted] = useState(false);
+  const [errors, setErrors] = useState<Errors>({});
+  const [loading, setLoading] = useState(false);
 
-  const handleCreateAccount = async () => {
-    const newErrors: { name?: string; contact?: string; password?: string } = {};
-    if (!name.trim()) newErrors.name = "name is required";
-    if (usePhone) {
-      if (!phoneNumber.trim()) newErrors.contact = "Phone number is required";
-    } else {
-      if (!email.trim()) newErrors.contact = "Email is required";
-    }
-    if (!password.trim()) newErrors.password = "Password is required";
+  const submit = async () => {
+    const cleanName = name.trim(); const cleanEmail = normalizeEmail(email);
+    const next: Errors = {};
+    if (cleanName.length < 2) next.name = "Enter your full name.";
+    if (!isValidEmail(cleanEmail)) next.email = "Enter a valid email address.";
+    const passwordMessage = passwordError(password); if (passwordMessage) next.password = passwordMessage;
+    if (!accepted) next.terms = "Please confirm before creating your account.";
+    if (Object.keys(next).length) return setErrors(next);
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-    setErrors({});
-
+    setLoading(true); setErrors({});
     try {
-      // Send OTP to phone number or email (trim input to normalize)
-      const valueToSend = usePhone ? phoneNumber.trim() : email.trim().toLowerCase();
-      const otpResponse = usePhone
-        ? await sendPhoneOtp({ phoneNumber: valueToSend })
-        : await sendEmailOtp({ email: valueToSend });
-      console.log("OTP request sent", { type: usePhone ? "phone" : "email" }, otpResponse);
-      (navigation.navigate as any)("OTP", {
-        type: usePhone ? "phone" : "email",
-        value: valueToSend,
-        name,
-        email: usePhone ? "" : valueToSend,
-        phoneNumber: usePhone ? valueToSend : "",
-        password,
-      });
-    } catch (error: any) {
-      console.error("Failed to send OTP:", error.message);
-      Alert.alert("Error", error.message || "Failed to send OTP. Please try again.");
-    }
+      await sendEmailOtp({ email: cleanEmail });
+      (navigation.navigate as any)("OTP", { flow: "register", type: "email", value: cleanEmail, name: cleanName, email: cleanEmail, password });
+    } catch (error: any) { Alert.alert("Could not send verification code", error?.message || "Check your connection and try again."); }
+    finally { setLoading(false); }
   };
 
-  const handleGoogleSignIn = () => {
-    console.log("Google sign in");
-    setUserData({
-      name: "Google User",
-      email: "googleuser@gmail.com",
-      password: "",
-    });
-    (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
-  };
-
-  const handleNavigateToLogin = () => {
-    (navigation.navigate as any)("Login");
-  };
-
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
-          <SafeAreaView style={{ flex: 1, marginTop: 2 }}>
-            <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 20 }}>
-              {/* Header */}
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 36, fontWeight: "bold", textAlign: "center", color: "#111827" }}>
-                  Create Account
-                </Text>
-                <Text style={{ marginTop: 8, fontSize: 16, textAlign: "center", color: "#17a2b8" }}>
-                  Let's start with creating an account!
-                </Text>
-              </View>
-
-              {/* Form */}
-              <View style={{ gap: 20 }}>
-                {/* name Field */}
-                <View>
-                  <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-                    name
-                  </Text>
-                  <TextInput
-                    placeholder="Enter your name"
-                    value={name}
-                    onChangeText={(text) => { setname(text); if (errors.name) setErrors((e) => ({ ...e, name: undefined })); }}
-                    style={{
-                      backgroundColor: "#F5F5F5",
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                      fontSize: 16,
-                      color: "#111827",
-                      borderColor: errors.name ? "#EF4444" : "#E5E7EB",
-                      borderWidth: 1,
-                    }}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                  {errors.name && (
-                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.name}</Text>
-                  )}
-                </View>
-
-                {/* Email or Phone Number Field */}
-                <View>
-                  {usePhone ? (
-                    <PhoneFields
-                      value={phoneNumber}
-                      onChange={(text) => { setPhoneNumber(text); if (errors.contact) setErrors((e) => ({ ...e, contact: undefined })); }}
-                      error={errors.contact}
-                    />
-                  ) : (
-                    <EmailFields
-                      value={email}
-                      onChange={(text) => { setEmail(text); if (errors.contact) setErrors((e) => ({ ...e, contact: undefined })); }}
-                      error={errors.contact}
-                    />
-                  )}
-                </View>
-
-
-                {/* Password Field */}
-                <View>
-                  <Text style={{ marginBottom: 8, fontSize: 14, fontWeight: "500", color: "#111827" }}>
-                    Password
-                  </Text>
-                  <View style={{ position: "relative" }}>
-                    <TextInput
-                      placeholder="At least 8 characters"
-                      value={password}
-                      onChangeText={(text) => { setPassword(text); if (errors.password) setErrors((e) => ({ ...e, password: undefined })); }}
-                      secureTextEntry={!showPassword}
-                      style={{
-                        backgroundColor: "#F5F5F5",
-                        borderRadius: 12,
-                        paddingHorizontal: 16,
-                        paddingVertical: 14,
-                        fontSize: 16,
-                        color: "#111827",
-                        borderColor: errors.password ? "#EF4444" : "#E5E7EB",
-                        borderWidth: 1,
-                      }}
-                      placeholderTextColor="#9CA3AF"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={{
-                        position: "absolute",
-                        right: 16,
-                        top: "50%",
-                        transform: [{ translateY: -12 }],
-                      }}
-                    >
-                      <Ionicons
-                        name={showPassword ? "eye-off-outline" : "eye-outline"}
-                        size={24}
-                        color="#9CA3AF"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {errors.password && (
-                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{errors.password}</Text>
-                  )}
-                </View>
-
-                {/* Toggle Register Mode */}
-                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
-                  <TouchableOpacity onPress={() => { setUsePhone(!usePhone); setErrors((e) => ({ ...e, contact: undefined })); }}>
-                    <Text style={{ marginHorizontal: 16, color: "#000000" }}>
-                      {usePhone ? "Use Email instead" : "Use Phone Number instead"}
-                    </Text>
-                  </TouchableOpacity>
-                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
-                </View>
-
-                {/* Create Account Button */}
-                <View style={{ marginTop: 16 }}>
-                  <TouchableOpacity
-                    onPress={handleCreateAccount}
-                    style={{
-                      backgroundColor: "#17a2b8",
-                      borderRadius: 12,
-                      paddingVertical: 16,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: 16, fontWeight: "600", color: "#FFFFFF" }}>
-                      Create Account
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Divider */}
-                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 8 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
-                  <Text style={{ marginHorizontal: 16, color: "#6B7280" }}>Or</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: "#D1D5DB" }} />
-                </View>
-
-                {/* Social Sign In Buttons */}
-                <GoogleSignInButton onPress={handleGoogleSignIn} />
-
-
-                {/* Login Link */}
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 16, marginBottom: 24 }}>
-                  <Text style={{ fontSize: 16, color: "#17a2b8" }}>
-                    Already have an account?{" "}
-                  </Text>
-                  <TouchableOpacity onPress={handleNavigateToLogin}>
-                    <Text style={{ fontSize: 16, fontWeight: "600", color: "#111827" }}>
-                      Login
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </SafeAreaView>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
-  );
+  const clear = (field: keyof Errors) => setErrors((current) => ({ ...current, [field]: undefined }));
+  return <AuthShell title="Create account" subtitle="Register with your email and verify it securely.">
+    <AuthField label="Full name" value={name} onChangeText={(value) => { setName(value); clear("name"); }} placeholder="Your name" icon="person-outline" autoComplete="name" error={errors.name} returnKeyType="next" />
+    <AuthField label="Email address" value={email} onChangeText={(value) => { setEmail(value); clear("email"); }} placeholder="name@example.com" icon="mail-outline" keyboardType="email-address" autoComplete="email" error={errors.email} returnKeyType="next" />
+    <AuthField label="Password" value={password} onChangeText={(value) => { setPassword(value); clear("password"); }} placeholder="At least 8 characters" icon="lock-closed-outline" secure showSecure={showPassword} onToggleSecure={() => setShowPassword((value) => !value)} autoComplete="new-password" error={errors.password} returnKeyType="done" />
+    <TouchableOpacity onPress={() => { setAccepted((value) => !value); clear("terms"); }} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: errors.terms ? 5 : 20 }}><View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: accepted ? colors.primary : colors.border, backgroundColor: accepted ? colors.primary : colors.surface, alignItems: "center", justifyContent: "center", marginTop: 1 }}>{accepted && <Ionicons name="checkmark" size={15} color="#FFFFFF" />}</View><Text style={{ flex: 1, color: colors.textMuted, fontSize: 12, lineHeight: 18, marginLeft: 9 }}>I confirm that these details are correct and agree to use them for Smart Queue notifications and account access.</Text></TouchableOpacity>
+    {!!errors.terms && <Text style={{ color: colors.danger, fontSize: 11, marginBottom: 14 }}>{errors.terms}</Text>}
+    <View style={{ padding: 11, borderRadius: radius.medium, backgroundColor: colors.primarySoft, flexDirection: "row", marginBottom: 16 }}><Ionicons name="mail-outline" size={18} color={colors.primary} /><Text style={{ flex: 1, color: colors.textMuted, fontSize: 11, lineHeight: 17, marginLeft: 7 }}>A 6-digit verification code will be sent to this email address.</Text></View>
+    <PrimaryAuthButton label="Continue to verification" loading={loading} onPress={submit} />
+    <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 22 }}><Text style={{ color: colors.textMuted }}>Already have an account? </Text><TouchableOpacity disabled={loading} onPress={() => (navigation.navigate as any)("Login")}><Text style={{ color: colors.primary, fontWeight: "900" }}>Sign in</Text></TouchableOpacity></View>
+  </AuthShell>;
 }

@@ -1,218 +1,45 @@
-import { View, Text } from "react-native";
-import { Card, Button, IconButton, Chip } from "react-native-paper";
+import { useState } from "react";
+import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import type { Queue } from "../src/constants/mockData";
+import { cardShadow, colors, radius } from "../src/themes/design";
 
-interface Queue {
-  id: string;
-  restaurantName: string;
-  queueNumber?: string;
-  partySize?: number;
-  queueType?: string;
-  position?: number;
-  totalPeople?: number;
-  estimatedWait: string;
-  joinedAt: string;
-  status: "active" | "ready" | "expired";
-  phone?: string;
-  notes?: string;
+interface Props { queue: Queue; onViewLive: () => void; onCancel: () => void; onImHere?: () => void; showActions?: boolean }
+const stages = ["Joined", "Waiting", "Ready", "Checked in", "Seated"];
+const statusIndex = (queue: Queue) => queue.status === "seated" ? 4 : queue.status === "checked_in" ? 3 : queue.status === "ready" ? 2 : queue.status === "active" ? 1 : queue.rawStatus === "cancelled" || queue.rawStatus === "canceled" ? 0 : 4;
+const statusStyle = (queue: Queue) => queue.status === "seated"
+  ? { color: "#7C3AED", background: "#F5F3FF", icon: "restaurant" as const }
+  : queue.status === "checked_in" ? { color: "#0284C7", background: "#F0F9FF", icon: "qr-code" as const }
+  : queue.status === "ready" ? { color: colors.success, background: colors.successSoft, icon: "megaphone" as const }
+  : queue.status === "active" ? { color: colors.primary, background: colors.primarySoft, icon: "time" as const }
+  : queue.rawStatus === "cancelled" || queue.rawStatus === "canceled" ? { color: colors.danger, background: "#FEF2F2", icon: "close-circle" as const }
+  : { color: colors.textMuted, background: "#F1F5F9", icon: "checkmark-done" as const };
+
+function Detail({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string }) {
+  if (!value) return null;
+  return <View style={{ width: "50%", paddingRight: 10, marginTop: 13 }}><View style={{ flexDirection: "row", alignItems: "center" }}><Ionicons name={icon} size={15} color={colors.textMuted} /><Text style={{ color: colors.textMuted, fontSize: 10, marginLeft: 5 }}>{label}</Text></View><Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 4 }} numberOfLines={2}>{value}</Text></View>;
 }
 
-interface QueueCardProps {
-  queue: Queue;
-  onViewLive: () => void;
-  onCancel: () => void;
-  onImHere?: () => void;
-  showActions?: boolean;
+function Progress({ queue }: { queue: Queue }) {
+  const current = statusIndex(queue); const cancelled = ["cancelled", "canceled"].includes(queue.rawStatus || "");
+  if (queue.status === "expired" && cancelled) return <View style={{ marginTop: 15, padding: 11, borderRadius: 13, backgroundColor: "#FEF2F2", flexDirection: "row", alignItems: "center" }}><Ionicons name="close-circle" size={18} color={colors.danger} /><Text style={{ color: colors.danger, fontWeight: "800", fontSize: 12, marginLeft: 7 }}>This queue was cancelled</Text></View>;
+  return <View style={{ marginTop: 17 }}><View style={{ flexDirection: "row", alignItems: "center" }}>{stages.map((stage, index) => <View key={stage} style={{ flex: index === stages.length - 1 ? 0 : 1, flexDirection: "row", alignItems: "center" }}><View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: index <= current ? colors.primary : colors.surface, borderWidth: 2, borderColor: index <= current ? colors.primary : colors.disabled, alignItems: "center", justifyContent: "center" }}>{index < current ? <Ionicons name="checkmark" size={11} color="#FFFFFF" /> : index === current ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FFFFFF" }} /> : null}</View>{index < stages.length - 1 && <View style={{ flex: 1, height: 2, backgroundColor: index < current ? colors.primary : colors.border }} />}</View>)}</View><View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 5 }}>{stages.map((stage, index) => <Text key={stage} style={{ width: "20%", textAlign: index === 0 ? "left" : index === stages.length - 1 ? "right" : "center", color: index === current ? colors.primary : colors.textMuted, fontSize: 8, fontWeight: index === current ? "900" : "600" }}>{stage}</Text>)}</View></View>;
 }
 
-export default function QueueCard({ 
-  queue, 
-  onViewLive, 
-  onCancel, 
-  onImHere,
-  showActions = true 
-}: QueueCardProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "#17a2b8";
-      case "ready":
-        return "#28a745";
-      case "expired":
-        return "#6c757d";
-      default:
-        return "#000";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "active":
-        return "In Queue";
-      case "ready":
-        return "Ready";
-      case "expired":
-        return "Completed";
-      default:
-        return status;
-    }
-  };
-
-  return (
-    <Card
-      style={{
-        marginBottom: 16,
-        backgroundColor: "white",
-        borderWidth: 1,
-        borderColor: "#e5e7eb",
-      }}
-    >
-      <Card.Content>
-        {/* Restaurant Name & Status */}
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <Text style={{ fontSize: 16, fontWeight: "bold", color: "#111827", flex: 1 }}>
-            {queue.restaurantName}
-          </Text>
-          <Chip
-            style={{
-              backgroundColor: `${getStatusColor(queue.status)}20`,
-            }}
-            textStyle={{
-              color: getStatusColor(queue.status),
-              fontSize: 12,
-              fontWeight: "600",
-            }}
-          >
-            {getStatusText(queue.status)}
-          </Chip>
-        </View>
-
-        {/* Queue Info */}
-        {queue.status !== "expired" && (
-          <View style={{ marginBottom: 16 }}>
-            {/* Queue Number */}
-            {queue.queueNumber && (
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                <IconButton
-                  icon="ticket"
-                  size={18}
-                  iconColor="#6b7280"
-                  style={{ margin: 0, padding: 0 }}
-                />
-                <Text style={{ fontSize: 14, color: "#6b7280", marginLeft: 4 }}>
-                  Queue Number: {queue.queueNumber}
-                </Text>
-              </View>
-            )}
-
-            {/* Party Size */}
-            {queue.partySize && (
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                <IconButton
-                  icon="account-group"
-                  size={18}
-                  iconColor="#6b7280"
-                  style={{ margin: 0, padding: 0 }}
-                />
-                <Text style={{ fontSize: 14, color: "#6b7280", marginLeft: 4 }}>
-                  Party Size: {queue.partySize} {queue.partySize === 1 ? 'person' : 'people'}
-                </Text>
-              </View>
-            )}
-
-            {/* Position (for old queues) */}
-            {!queue.queueNumber && queue.position !== undefined && (
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                <IconButton
-                  icon="account-group"
-                  size={18}
-                  iconColor="#6b7280"
-                  style={{ margin: 0, padding: 0 }}
-                />
-                <Text style={{ fontSize: 14, color: "#6b7280", marginLeft: 4 }}>
-                  Position: {queue.position} of {queue.totalPeople}
-                </Text>
-              </View>
-            )}
-
-            {/* Estimated Wait */}
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-              <IconButton
-                icon="clock-outline"
-                size={18}
-                iconColor="#6b7280"
-                style={{ margin: 0, padding: 0 }}
-              />
-              <Text style={{ fontSize: 14, color: "#6b7280", marginLeft: 4 }}>
-                Estimated wait: {queue.estimatedWait}
-              </Text>
-            </View>
-
-            {/* Joined At */}
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <IconButton
-                icon="calendar"
-                size={18}
-                iconColor="#6b7280"
-                style={{ margin: 0, padding: 0 }}
-              />
-              <Text style={{ fontSize: 14, color: "#6b7280", marginLeft: 4 }}>
-                Joined at: {queue.joinedAt}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {queue.status === "expired" && (
-          <View style={{ marginBottom: 12 }}>
-            <Text style={{ fontSize: 14, color: "#6b7280" }}>
-              Completed on {queue.joinedAt}
-            </Text>
-          </View>
-        )}
-
-        {/* Actions */}
-        {showActions && (
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
-            <Button
-              mode="contained"
-              onPress={onViewLive}
-              style={{
-                flex: 1,
-                backgroundColor: "#17a2b8",
-                borderRadius: 20,
-              }}
-            >
-              View Live
-            </Button>
-            {queue.status === "ready" ? (
-              <Button
-                mode="contained"
-                onPress={onImHere}
-                style={{
-                  flex: 1,
-                  backgroundColor: "#28a745",
-                  borderRadius: 20,
-                }}
-              >
-                I'm Here
-              </Button>
-            ) : (
-              <Button
-                mode="outlined"
-                onPress={onCancel}
-                style={{
-                  flex: 1,
-                  borderColor: "#dc3545",
-                  borderRadius: 20,
-                }}
-                textColor="#dc3545"
-              >
-                Cancel
-              </Button>
-            )}
-          </View>
-        )}
-      </Card.Content>
-    </Card>
-  );
+export default function QueueCard({ queue, onViewLive, onCancel, onImHere, showActions = true }: Props) {
+  const [expanded, setExpanded] = useState(false); const badge = statusStyle(queue);
+  const live = queue.status === "active" || queue.status === "ready";
+  return <View style={{ backgroundColor: colors.surface, borderRadius: radius.large, borderWidth: 1, borderColor: badge.color + "35", marginBottom: 16, overflow: "hidden", ...cardShadow }}>
+    <View style={{ height: 5, backgroundColor: badge.color }} /><View style={{ padding: 16 }}>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>{queue.shopImage ? <Image source={{ uri: queue.shopImage }} style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: colors.primarySoft }} /> : <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }}><Ionicons name="storefront" size={24} color={colors.primary} /></View>}<View style={{ flex: 1, marginLeft: 12 }}><Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }} numberOfLines={1}>{queue.restaurantName}</Text><Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 3 }} numberOfLines={1}>{queue.queueType || "General queue"}</Text></View><View style={{ flexDirection: "row", alignItems: "center", backgroundColor: badge.background, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 7 }}><Ionicons name={badge.icon} size={14} color={badge.color} /><Text style={{ color: badge.color, fontSize: 10, fontWeight: "900", marginLeft: 4 }}>{queue.statusLabel}</Text></View></View>
+      <Progress queue={queue} />
+      <View style={{ flexDirection: "row", marginTop: 16, gap: 10 }}><View style={{ flex: 1, backgroundColor: colors.primarySoft, borderRadius: radius.medium, padding: 13 }}><Text style={{ color: colors.textMuted, fontSize: 10 }}>QUEUE NUMBER</Text><Text style={{ color: colors.primary, fontSize: 25, fontWeight: "900", marginTop: 3 }}>{queue.queueNumber || "—"}</Text></View><View style={{ flex: 1, backgroundColor: badge.background, borderRadius: radius.medium, padding: 13 }}><Text style={{ color: colors.textMuted, fontSize: 10 }}>{queue.status === "active" ? "EST. WAIT" : "CURRENT STATUS"}</Text><Text style={{ color: badge.color, fontSize: 16, fontWeight: "900", marginTop: 8 }} numberOfLines={1}>{queue.estimatedWait}</Text></View></View>
+      {queue.status === "ready" && <View style={{ marginTop: 12, padding: 12, borderRadius: 13, backgroundColor: colors.successSoft, flexDirection: "row", alignItems: "center" }}><Ionicons name="qr-code" size={20} color={colors.success} /><View style={{ flex: 1, marginLeft: 9 }}><Text style={{ color: "#166534", fontWeight: "900", fontSize: 12 }}>It’s your turn</Text><Text style={{ color: "#15803D", fontSize: 10, marginTop: 2 }}>Scan the shop QR code when you arrive.</Text></View></View>}
+      {queue.status === "checked_in" && <View style={{ marginTop: 12, padding: 12, borderRadius: 13, backgroundColor: "#F0F9FF", flexDirection: "row", alignItems: "center" }}><Ionicons name="shield-checkmark" size={20} color="#0284C7" /><View style={{ flex: 1, marginLeft: 9 }}><Text style={{ color: "#075985", fontWeight: "900", fontSize: 12 }}>Check-in confirmed</Text><Text style={{ color: "#0369A1", fontSize: 10, marginTop: 2 }}>Your QR was scanned. Please wait to be seated.</Text></View></View>}
+      {queue.status === "seated" && <View style={{ marginTop: 12, padding: 12, borderRadius: 13, backgroundColor: "#F5F3FF", flexDirection: "row", alignItems: "center" }}><Ionicons name="restaurant" size={20} color="#7C3AED" /><View style={{ flex: 1, marginLeft: 9 }}><Text style={{ color: "#5B21B6", fontWeight: "900", fontSize: 12 }}>You’re seated</Text><Text style={{ color: "#6D28D9", fontSize: 10, marginTop: 2 }}>Service has started. Enjoy your visit.</Text></View></View>}
+      <TouchableOpacity onPress={() => setExpanded((value) => !value)} style={{ height: 39, marginTop: 11, flexDirection: "row", alignItems: "center", justifyContent: "center" }}><Text style={{ color: colors.primary, fontSize: 11, fontWeight: "800" }}>{expanded ? "Hide details" : "View queue details"}</Text><Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.primary} style={{ marginLeft: 4 }} /></TouchableOpacity>
+      {expanded && <><View style={{ height: 1, backgroundColor: colors.border }} /><View style={{ flexDirection: "row", flexWrap: "wrap" }}><Detail icon="people-outline" label="Party size" value={queue.partySize ? `${queue.partySize} ${queue.partySize === 1 ? "person" : "people"}` : undefined} /><Detail icon="layers-outline" label="Position" value={queue.status === "active" && queue.position ? `${queue.position}${queue.totalPeople ? ` of ${queue.totalPeople}` : ""}` : undefined} /><Detail icon="calendar-outline" label="Joined" value={queue.joinedAt} /><Detail icon="call-outline" label="Contact" value={queue.customerPhone || queue.phone || queue.shopPhone} /><Detail icon="location-outline" label="Address" value={queue.shopAddress} /><Detail icon="refresh-outline" label="Last updated" value={queue.updatedAt} /></View>{!!queue.notes && <View style={{ marginTop: 13, padding: 11, borderRadius: 12, backgroundColor: "#F8FAFC", flexDirection: "row" }}><Ionicons name="document-text-outline" size={16} color={colors.textMuted} /><Text style={{ flex: 1, color: colors.textMuted, fontSize: 11, lineHeight: 17, marginLeft: 7 }}>{queue.notes}</Text></View>}</>}
+      {showActions && <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>{live && <TouchableOpacity onPress={queue.status === "ready" ? onImHere : onViewLive} activeOpacity={0.8} style={{ flex: 1, height: 46, borderRadius: radius.pill, backgroundColor: queue.status === "ready" ? colors.success : colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center" }}><Ionicons name={queue.status === "ready" ? "qr-code" : "pulse"} size={17} color="#FFFFFF" /><Text style={{ color: "#FFFFFF", fontWeight: "800", marginLeft: 7 }}>{queue.status === "ready" ? "Scan shop QR" : "Track live"}</Text></TouchableOpacity>}{queue.status === "active" && <TouchableOpacity onPress={onCancel} activeOpacity={0.8} style={{ flex: 1, height: 46, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.danger, alignItems: "center", justifyContent: "center" }}><Text style={{ color: colors.danger, fontWeight: "800" }}>Cancel queue</Text></TouchableOpacity>}{(queue.status === "checked_in" || queue.status === "seated") && <TouchableOpacity onPress={onViewLive} style={{ flex: 1, height: 46, borderRadius: radius.pill, backgroundColor: badge.background, alignItems: "center", justifyContent: "center" }}><Text style={{ color: badge.color, fontWeight: "800" }}>View status</Text></TouchableOpacity>}</View>}
+    </View>
+  </View>;
 }

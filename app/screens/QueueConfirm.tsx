@@ -86,7 +86,7 @@ export default function QueueConfirm() {
           style={{
             fontSize: 25,
             fontWeight: "bold",
-            color: "#17a2b8",
+            color: "#1E7A9B",
             textAlign: "center",
             marginBottom: 8,
           }}
@@ -236,7 +236,7 @@ export default function QueueConfirm() {
                   Estimated Wait
                 </Text>
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#17a2b8" }}
+                  style={{ fontSize: 14, fontWeight: "600", color: "#1E7A9B" }}
                 >
                   ~{queueStats.estimatedWait} min
                 </Text>
@@ -295,7 +295,7 @@ export default function QueueConfirm() {
               (navigation.navigate as any)("MainTabs", { screen: "MyQueues" });
             }}
             style={{
-              backgroundColor: "#17a2b8",
+              backgroundColor: "#1E7A9B",
               borderRadius: 25,
               paddingVertical: 8,
             }}
@@ -311,13 +311,13 @@ export default function QueueConfirm() {
               (navigation.navigate as any)("MainTabs", { screen: "HomePage" });
             }}
             style={{
-              borderColor: "#17a2b8",
+              borderColor: "#1E7A9B",
               borderRadius: 25,
               paddingVertical: 8,
             }}
             contentStyle={{ height: 40 }}
             labelStyle={{ fontSize: 16, fontWeight: "600" }}
-            textColor="#17a2b8"
+            textColor="#1E7A9B"
           >
             Back to Home
           </Button>

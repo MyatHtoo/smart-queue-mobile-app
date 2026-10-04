@@ -83,13 +83,14 @@ async function request<T>(
 
 export type RegisterCustomerPayload = {
   name: string;
-  email: string;
-  phoneNumber: string;
+  email?: string;
+  phoneNumber?: string;
   password: string;
 };
 
 export type LoginCustomerPayload = {
   usernameOrEmail?: string;
+  email?: string;
   phoneNumber?: string;
   password: string;
 };
@@ -750,6 +751,17 @@ export const cancelQueue = (queueId: string) => {
   });
 };
 
+export const savePushToken = (token: string) => request<any>('/customers/push-token', {
+  method: 'POST',
+  body: { token },
+});
+
+export const getNotifications = (page = 1, limit = 100) => request<any>(`/notifications?page=${page}&limit=${limit}`, { method: 'GET' });
+export const getUnreadNotificationCount = () => request<any>('/notifications/unread-count', { method: 'GET' });
+export const markNotificationRead = (id: string) => request<any>(`/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
+export const markAllNotificationsRead = () => request<any>('/notifications/read-all', { method: 'PATCH' });
+export const deleteNotification = (id: string) => request<any>(`/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
 
 export default {
   registerCustomer,
@@ -769,4 +781,10 @@ export default {
   getQueueById,
   scanQueueQr,
   cancelQueue,
+  savePushToken,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
 };

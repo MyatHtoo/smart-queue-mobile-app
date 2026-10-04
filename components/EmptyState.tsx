@@ -24,7 +24,7 @@ export default function EmptyState({ activeTab, onScanQRCode }: EmptyStateProps)
           onPress={onScanQRCode}
           style={{
             marginTop: 20,
-            backgroundColor: "#17a2b8",
+            backgroundColor: "#1E7A9B",
             borderRadius: 20,
           }}
         >

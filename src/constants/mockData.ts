@@ -9,9 +9,17 @@ export interface Queue {
   totalPeople?: number;
   estimatedWait: string;
   joinedAt: string;
-  status: "active" | "ready" | "expired";
+  status: "active" | "ready" | "checked_in" | "seated" | "expired";
   phone?: string;
   notes?: string;
+  rawStatus?: string;
+  statusLabel?: string;
+  shopImage?: string;
+  shopAddress?: string;
+  shopPhone?: string;
+  customerPhone?: string;
+  updatedAt?: string;
+  completedAt?: string;
 }
 
 export const MOCK_ACTIVE_QUEUES: Queue[] = [

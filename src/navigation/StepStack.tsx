@@ -134,23 +134,7 @@ export default function StepStack() {
             <Stack.Screen
                 name="Notifications"
                 component={NotificationsScreen}
-                options={({ navigation }) => ({
-                    headerShown: true,
-                    headerShadowVisible: false,
-                    headerStyle: {
-                        backgroundColor: "white",
-                        paddingBottom: 8,
-                    },
-                    headerTitle: "Notifications",
-                    headerLeft: () => (
-                        <TouchableOpacity
-                            onPress={() => navigation.goBack()}
-                            style={{ marginRight: 26 }}>
-                            <Entypo name="chevron-small-left" size={32}
-                                color="#000" />
-                        </TouchableOpacity>
-                    ),
-                })}
+                options={{ headerShown: false }}
             />
 
 

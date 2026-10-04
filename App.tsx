@@ -17,12 +17,14 @@ import LiveLocationScreen from "./app/screens/LiveLocationScreen";
 import { UserProvider } from "./src/contexts/UserContext";
 import { useUser } from "./src/contexts/UserContext";
 import { ActivityIndicator, View } from "react-native";
+import { colors } from "./src/themes/design";
+import { NotificationProvider } from "./src/contexts/NotificationContext";
 
 function AppNavigator() {
   const { token, isLoading } = useUser();
   const Stack = createNativeStackNavigator();
   if (isLoading) {
-    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color="#17a2b8" /></View>;
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}><ActivityIndicator size="large" color={colors.primary} /></View>;
   }
   return (
       <PaperProvider theme={Theme}>
@@ -61,7 +63,7 @@ function AppNavigator() {
 export default function App() {
   return (
     <UserProvider>
-      <AppNavigator />
+      <NotificationProvider><AppNavigator /></NotificationProvider>
     </UserProvider>
   );
 }

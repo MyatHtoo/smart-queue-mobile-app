@@ -14,12 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '../../src/contexts/UserContext';
 import {
   registerCustomer,
+  loginCustomer,
   sendPhoneOtp,
   verifyPhoneOtp,
   sendEmailOtp,
   verifyEmailOtp,
   setAuthToken,
 } from '../../src/services/api';
+import { colors } from '../../src/themes/design';
 
 
 type Props = {
@@ -103,8 +105,9 @@ export default function OTPScreen({ navigation, route }: Props) {
         });
       }
 
-      if (!verifyRes.data.verified) {
-        Alert.alert('Invalid OTP', verifyRes.data.message);
+      const verification = verifyRes?.data ?? verifyRes;
+      if (verification?.verified !== true) {
+        Alert.alert('Invalid OTP', verification?.message || 'The code is incorrect or expired.');
         return;
       }
 
@@ -149,23 +152,44 @@ export default function OTPScreen({ navigation, route }: Props) {
         return;
       }
 
-      const regRes: any = await registerCustomer({
-        name,
-        email: isPhone ? email : (email || value),
-        phoneNumber: isPhone ? (phoneNumber || value) : (phoneNumber || ''),
-        password,
-      });
-
-      // extract token and customer info if available
-      const token = regRes?.data?.token ?? regRes?.data?.accessToken ?? regRes?.accessToken ?? regRes?.token;
-      const customer = regRes?.data?.customer ?? regRes?.data?.user ?? regRes?.data ?? regRes;
-
-      if (token) {
-        setAuthToken(token);
-        await setToken(token);
+      let regRes: any;
+      let registrationError: any;
+      try {
+        regRes = await registerCustomer({
+          name,
+          ...(isPhone ? { phoneNumber: phoneNumber || value } : { email: email || value }),
+          password,
+        });
+      } catch (error: any) {
+        // The first request may have created the account even if the client
+        // failed to leave OTP. Continue with sign-in to make this flow safe
+        // to retry instead of trapping the user on verification.
+        registrationError = error;
       }
 
-      setUserData({
+      // Registration currently returns success without an access token. Sign
+      // in immediately so the new account receives a real authenticated session.
+      let token = regRes?.data?.token ?? regRes?.data?.accessToken ?? regRes?.accessToken ?? regRes?.token;
+      let customer = regRes?.data?.customer ?? regRes?.data?.user;
+      if (!token) {
+        let loginRes: any;
+        try {
+          loginRes = await loginCustomer(
+            isPhone
+              ? { phoneNumber: phoneNumber || value, password }
+              : { email: email || value, password }
+          );
+        } catch (loginError: any) {
+          throw registrationError || loginError;
+        }
+        token = loginRes?.data?.accessToken ?? loginRes?.data?.token ?? loginRes?.accessToken ?? loginRes?.token;
+        customer = loginRes?.data?.user ?? loginRes?.data?.customer ?? loginRes?.user ?? loginRes?.customer;
+      }
+      if (!token || !customer) {
+        throw new Error('Account created, but automatic sign-in failed. Please sign in with your new account.');
+      }
+
+      const account = {
         name: customer?.name || name,
         email: customer?.email || (isPhone ? email : (email || value)),
         phoneNumber: customer?.phoneNumber || (isPhone ? (phoneNumber || value) : (phoneNumber || '')),
@@ -177,21 +201,29 @@ export default function OTPScreen({ navigation, route }: Props) {
           customer?.avatarURL ||
           customer?.image ||
           '',
-        password,
+        password: '',
         token: token || '',
         id: customer?._id || customer?.id || '',
-      });
+      };
 
-      Alert.alert('Success', 'Account created successfully!', [
-        {
-          text: 'OK',
-          onPress: () =>
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'MainTabs' }],
-            }),
-        },
-      ]);
+      setAuthToken(token);
+      setUserData(account);
+      await setToken(token);
+
+      // A token can change from one authenticated account to another without
+      // remounting the root navigator. Reset explicitly so OTP never remains
+      // on top after a successful registration.
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs', params: { screen: 'HomePage' } }],
+      });
+      setTimeout(() => {
+        Alert.alert(
+          'Account created',
+          `Your email ${account.email || email || value} has been verified. Welcome to Smart Queue!`,
+          [{ text: 'Get started' }]
+        );
+      }, 250);
     } catch (error: any) {
       Alert.alert(
         'Verification Failed',
@@ -223,7 +255,7 @@ export default function OTPScreen({ navigation, route }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#fff' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <SafeAreaView style={{ flex: 1 }}>
@@ -233,13 +265,13 @@ export default function OTPScreen({ navigation, route }: Props) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#111827" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
 
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconCircle}>
-              <Ionicons name={isPhone ? 'call-outline' : 'mail-outline'} size={32} color="#17a2b8" />
+              <Ionicons name={isPhone ? 'call-outline' : 'mail-outline'} size={32} color={colors.primary} />
             </View>
             <Text style={styles.title}>{isPhone ? 'Verify Phone Number' : 'Verify Email'}</Text>
             <Text style={styles.subtitle}>
@@ -278,7 +310,7 @@ export default function OTPScreen({ navigation, route }: Props) {
             ) : (
               <Text style={styles.timerText}>
                 Resend in{' '}
-                <Text style={{ color: '#17a2b8', fontWeight: '600' }}>
+                <Text style={{ color: '#1E7A9B', fontWeight: '600' }}>
                   {timer}s
                 </Text>
               </Text>
@@ -366,7 +398,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   otpInputFilled: {
-    borderColor: '#17a2b8',
+    borderColor: '#1E7A9B',
     backgroundColor: '#F0FDFA',
   },
   resendContainer: {
@@ -376,14 +408,14 @@ const styles = StyleSheet.create({
   resendText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#17a2b8',
+    color: '#1E7A9B',
   },
   timerText: {
     fontSize: 14,
     color: '#6B7280',
   },
   verifyButton: {
-    backgroundColor: '#17a2b8',
+    backgroundColor: '#1E7A9B',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',

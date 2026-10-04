@@ -1,306 +1,58 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  ActivityIndicator,
-  Image,
-  TouchableOpacity,
-} from "react-native";
-import MapView, { Marker, Circle } from "react-native-maps";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { getShops } from "../../src/services/api";
+import { distanceInMeters, MAX_QUEUE_DISTANCE_METERS } from "../../src/hooks/useNearbyShops";
+import { cardShadow, colors, radius } from "../../src/themes/design";
 
-const getDistanceInMeters = (
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-) => {
-  const R = 6371e3;
+type Coordinates = { latitude: number; longitude: number };
+const shopItems = (response: any) => Array.isArray(response) ? response : response?.data ?? response?.shops ?? [];
 
-  const radLat1 = (lat1 * Math.PI) / 180;
-  const radLat2 = (lat2 * Math.PI) / 180;
-
-  const deltaLat = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLng = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-    Math.cos(radLat1) *
-      Math.cos(radLat2) *
-      Math.sin(deltaLng / 2) *
-      Math.sin(deltaLng / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
-};
-
-export default function LiveLocationScreen() {
-  const navigation = useNavigation();
-  const mapRef = useRef<MapView>(null);
-
-  const [userLocation, setUserLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-
-  const [shops, setShops] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Zoom in closely to the user's location when the map loads
-  const zoomToUserLocation = (coords: {
-    latitude: number;
-    longitude: number;
-  }) => {
-    mapRef.current?.animateCamera(
-      {
-        center: coords,
-        zoom: 18.5,
-      },
-      { duration: 800 }
-    );
-  };
-
-  // Fetch registered shops from the backend API
-  const fetchShops = async () => {
+export default function LiveLocationScreen({ embedded = false }: { embedded?: boolean }) {
+  const navigation = useNavigation(); const mapRef = useRef<WebView>(null);
+  const [location, setLocation] = useState<Coordinates | null>(null); const [shops, setShops] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
     try {
-      const res = await fetch(
-        "https://smart-q-backend-nestjs.onrender.com/api/shops/all"
-      );
-
-      const result = await res.json();
-
-      const rawShops = Array.isArray(result)
-        ? result
-        : result?.data ?? result?.shops ?? [];
-
-      setShops(rawShops);
-    } catch (e) {
-      console.warn("Error fetching shops:", e);
-    }
-  };
-
-  // Real-time GPS tracking setup
-  useEffect(() => {
-    let locationSubscription: Location.LocationSubscription | null = null;
-
-    (async () => {
-      let { status } =
-        await Location.requestForegroundPermissionsAsync();
-
-      // Default location if GPS permission is not granted
-      let lat = 20.048089972909867;
-      let lng = 99.89494063617323;
-
-      if (status === "granted") {
-        // Get the user's current location
-        let location = await Location.getCurrentPositionAsync({});
-
-        lat = location.coords.latitude;
-        lng = location.coords.longitude;
-
-        // Watch the user's location in real time
-        locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 3000,
-            distanceInterval: 5,
-          },
-          (newLoc) => {
-            const newCoords = {
-              latitude: newLoc.coords.latitude,
-              longitude: newLoc.coords.longitude,
-            };
-
-            setUserLocation(newCoords);
-          }
-        );
-      }
-
-      setUserLocation({
-        latitude: lat,
-        longitude: lng,
-      });
-
-      await fetchShops();
-      setLoading(false);
-    })();
-
-    // Refresh the shop list every 5 seconds
-    const intervalId = setInterval(() => {
-      fetchShops();
-    }, 5000);
-
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-
-      clearInterval(intervalId);
-    };
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") throw new Error("Location permission is required to show nearby shops.");
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const coords = { latitude: current.coords.latitude, longitude: current.coords.longitude }; setLocation(coords); setShops(shopItems(await getShops()));
+    } catch (reason: any) { setError(reason?.message || "Unable to load the live map."); }
+    finally { setLoading(false); }
   }, []);
+  useEffect(() => { load(); }, [load]);
+  const mapped = shops.map((shop) => { const coordinates = shop?.address?.location?.coordinates; const longitude = Number(coordinates?.[0] ?? shop?.longitude); const latitude = Number(coordinates?.[1] ?? shop?.latitude); const valid = Number.isFinite(latitude) && Number.isFinite(longitude); const distance = location && valid ? distanceInMeters(location.latitude, location.longitude, latitude, longitude) : undefined; return { ...shop, latitude, longitude, valid, distance, nearby: distance != null && distance <= MAX_QUEUE_DISTANCE_METERS }; }).filter((shop) => shop.valid);
+  const nearbyCount = mapped.filter((shop) => shop.nearby).length;
+  const mapHtml = useMemo(() => {
+    if (!location) return "";
+    const markers = mapped.map((shop) => ({
+      latitude: shop.latitude,
+      longitude: shop.longitude,
+      name: String(shop.name ?? "Shop"),
+      nearby: shop.nearby,
+      distance: shop.distance == null ? "" : shop.distance < 1000 ? `${Math.round(shop.distance)} m away` : `${(shop.distance / 1000).toFixed(1)} km away`,
+    }));
+    return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>html,body,#map{height:100%;margin:0;background:#eef4f6}.leaflet-control-attribution{font:9px sans-serif}.shop-label{font:700 12px sans-serif;color:#102033}.user-dot{width:14px;height:14px;border:3px solid white;border-radius:50%;background:#4285f4;box-shadow:0 0 0 2px #4285f4}</style></head><body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+      const center=[${location.latitude},${location.longitude}];
+      const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(center,14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+      L.circle(center,{radius:${MAX_QUEUE_DISTANCE_METERS},color:'#1E7A9B',weight:2,fillColor:'#1E7A9B',fillOpacity:.12}).addTo(map);
+      L.marker(center,{icon:L.divIcon({className:'',html:'<div class="user-dot"></div>',iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map).bindPopup('<b>Your location</b>');
+      ${JSON.stringify(markers)}.forEach(s=>L.circleMarker([s.latitude,s.longitude],{radius:13,color:'#fff',weight:4,fillColor:s.nearby?'#1E7A9B':'#9AA7B4',fillOpacity:1}).addTo(map).bindPopup('<div class="shop-label">'+s.name+'</div><div>'+s.distance+' · '+(s.nearby?'Queue available':'Outside 1 km')+'</div>'));
+      window.focusUser=()=>map.setView(center,14,{animate:true});
+    </script></body></html>`;
+  }, [location, mapped]);
 
-  // Show loading screen while location is being retrieved
-  if (loading || !userLocation) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#17a2b8" />
+  if (loading && !location) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}><ActivityIndicator size="large" color={colors.primary} /><Text style={{ color: colors.text, fontWeight: "800", marginTop: 14 }}>Finding your location</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 5 }}>Loading registered shops nearby…</Text></View>;
+  if (error || !location) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 28, backgroundColor: colors.background }}><View style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }}><Ionicons name="location-outline" size={34} color={colors.primary} /></View><Text style={{ color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 16 }}>Location unavailable</Text><Text style={{ color: colors.textMuted, textAlign: "center", lineHeight: 20, marginTop: 7 }}>{error}</Text><TouchableOpacity onPress={load} style={{ height: 48, paddingHorizontal: 25, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginTop: 18 }}><Text style={{ color: "#FFFFFF", fontWeight: "900" }}>Try again</Text></TouchableOpacity>{!embedded && <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 14 }}><Text style={{ color: colors.textMuted, fontWeight: "700" }}>Go back</Text></TouchableOpacity>}</View>;
 
-        <Text style={{ marginTop: 10 }}>
-          Calculating your live location...
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      {/* Floating Back Header Bar */}
-      <SafeAreaView style={styles.headerContainer}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="#333"
-          />
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>
-          Live Registered Shops Map
-        </Text>
-      </SafeAreaView>
-
-      {/* Map View */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={{
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-          latitudeDelta: 0.002,
-          longitudeDelta: 0.002,
-        }}
-        onMapReady={() => {
-          // Automatically zoom in when the map is ready
-          if (userLocation) {
-            zoomToUserLocation(userLocation);
-          }
-        }}
-        showsUserLocation={true}
-      >
-        {/* 2 km radius around the user's location */}
-        <Circle
-          center={userLocation}
-          radius={2000}
-          fillColor="rgba(23, 162, 184, 0.15)"
-          strokeColor="#17a2b8"
-          strokeWidth={2}
-        />
-
-        {/* Display all registered shops on the map */}
-        {shops.map((shop) => {
-          const shopLng =
-            shop.address?.location?.coordinates?.[0] ??
-            shop.longitude;
-
-          const shopLat =
-            shop.address?.location?.coordinates?.[1] ??
-            shop.latitude;
-
-          if (!shopLat || !shopLng) return null;
-
-          return (
-            <Marker
-              key={shop._id || shop.id}
-              coordinate={{
-                latitude: Number(shopLat),
-                longitude: Number(shopLng),
-              }}
-              title={shop.name}
-              description="Registered Restaurant"
-            >
-              <View style={styles.markerContainer}>
-                <Image
-                  source={{
-                    uri:
-                      shop.shopImg ||
-                      "https://cdn-icons-png.flaticon.com/512/3448/3448609.png",
-                  }}
-                  style={styles.shopIcon}
-                  resizeMode="cover"
-                />
-              </View>
-            </Marker>
-          );
-        })}
-      </MapView>
-    </View>
-  );
+  return <View style={{ flex: 1 }}><WebView ref={mapRef} style={{ flex: 1, backgroundColor: colors.background }} source={{ html: mapHtml }} originWhitelist={["*"]} javaScriptEnabled domStorageEnabled mixedContentMode="always" startInLoadingState renderLoading={() => <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}><ActivityIndicator size="large" color={colors.primary} /></View>} />
+    <View style={{ position: "absolute", top: 48, left: 16, right: 16, flexDirection: "row", alignItems: "center" }}>{!embedded && <TouchableOpacity onPress={() => navigation.goBack()} style={{ width: 44, height: 44, borderRadius: 15, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", ...cardShadow }}><Ionicons name="arrow-back" size={21} color={colors.primary} /></TouchableOpacity>}<View style={{ flex: 1, marginLeft: embedded ? 0 : 9, paddingHorizontal: 14, height: 52, borderRadius: 16, backgroundColor: colors.surface, justifyContent: "center", ...cardShadow }}><Text style={{ color: colors.text, fontWeight: "900" }}>Live shop map</Text><Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }}>{nearbyCount} within 1 km • {mapped.length} registered</Text></View></View>
+    <View style={{ position: "absolute", right: 16, bottom: 135, gap: 9 }}><TouchableOpacity onPress={load} style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", ...cardShadow }}>{loading ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="refresh" size={21} color={colors.primary} />}</TouchableOpacity><TouchableOpacity onPress={() => mapRef.current?.injectJavaScript("window.focusUser && window.focusUser(); true;")} style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", ...cardShadow }}><Ionicons name="locate" size={21} color="#FFFFFF" /></TouchableOpacity></View>
+    <View style={{ position: "absolute", left: 16, right: 16, bottom: 24, padding: 15, borderRadius: radius.large, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", ...cardShadow }}><View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }}><Ionicons name="navigate" size={21} color={colors.primary} /></View><View style={{ flex: 1, marginLeft: 11 }}><Text style={{ color: colors.text, fontWeight: "900" }}>1 km queue service area</Text><Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 3 }}>Colored markers can accept your queue.</Text></View></View>
+  </View>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  headerContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-  },
-
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    marginRight: 12,
-    elevation: 3,
-  },
-
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-  },
-
-  map: {
-    width: "100%",
-    height: "100%",
-  },
-
-  markerContainer: {
-    backgroundColor: "white",
-    padding: 4,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "#17a2b8",
-    elevation: 4,
-  },
-
-  shopIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-});

@@ -14,6 +14,7 @@ import {
   setAuthToken,
 } from '../../src/services/api';
 import { saveProfileImageForAccount } from '../../src/utils/ProfileImageStore';
+import { colors, radius, cardShadow } from '../../src/themes/design';
 
 type Props = {
   navigation: any;
@@ -628,7 +629,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
       <View style={styles.header}>
         <IconButton
           icon="arrow-left"
-          iconColor="#fff"
+          iconColor={colors.primary}
           size={24}
           onPress={() => navigation.goBack()}
           style={styles.backButton}
@@ -671,7 +672,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
             style={styles.input}
             textColor="#000"
             outlineColor="#E0E0E0"
-            activeOutlineColor="#1A80A4"
+            activeOutlineColor="#1E7A9B"
           />
 
           {userData.email ? (
@@ -687,7 +688,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
                 style={styles.input}
                 textColor="#000"
                 outlineColor="#E0E0E0"
-                activeOutlineColor="#1A80A4"
+                activeOutlineColor="#1E7A9B"
               />
 
               {emailChanged ? (
@@ -712,7 +713,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
                 style={styles.input}
                 textColor="#000"
                 outlineColor="#E0E0E0"
-                activeOutlineColor="#1A80A4"
+                activeOutlineColor="#1E7A9B"
               />
 
               {phoneChanged || usernameChanged ? (
@@ -734,7 +735,7 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
             style={styles.input}
             textColor="#000"
             outlineColor="#E0E0E0"
-            activeOutlineColor="#1A80A4"
+            activeOutlineColor="#1E7A9B"
           />
         </View>
 
@@ -756,21 +757,18 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: '#17a2b8',
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingTop: 40,
-    paddingBottom: 25,
+    paddingBottom: 16,
     paddingHorizontal: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   backButton: {
     margin: 0,
@@ -782,12 +780,12 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   headerTitle: {
-    color: '#fff',
-    fontWeight: '600',
+    color: colors.text,
+    fontWeight: '900',
     textAlign: 'center',
   },
   successMessage: {
-    color: '#fff',
+    color: colors.success,
     fontWeight: 'bold',
     textAlign: 'center',
     fontSize: 14,
@@ -803,17 +801,20 @@ const styles = StyleSheet.create({
   profileImageContainer: {
     alignItems: 'center',
     marginTop: 30,
-    marginBottom: 40,
+    marginBottom: 24,
   },
   avatarPlaceholder: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: colors.primarySoft,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
     overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: colors.surface,
+    ...cardShadow,
   },
   avatarImage: {
     width: '100%',
@@ -824,7 +825,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   inputContainer: {
-    marginBottom: 30,
+    marginBottom: 22,
+    backgroundColor: colors.surface,
+    borderRadius: radius.large,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   label: {
     fontSize: 14,
@@ -834,7 +840,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     fontSize: 16,
     color: '#000',
   },
@@ -853,7 +859,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   updateButton: {
-    backgroundColor: '#17a2b8',
+    backgroundColor: colors.primary,
     borderRadius: 30,
     paddingVertical: 12,
     marginTop: 20,
