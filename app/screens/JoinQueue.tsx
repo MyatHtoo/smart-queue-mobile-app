@@ -5,7 +5,6 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import TableTypeSelector from "../../components/TableTypeSelector";
 import { useUser } from "../../src/contexts/UserContext";
 import { createQueue, getCustomerQueues } from "../../src/services/api";
-import { getQueueStatus, isFinishedQueueStatus } from "../../src/utils/LiveQueue";
 import { tableTypesFromShop, type TableTypeOption } from "../../src/utils/TableTypes";
 import { cardShadow, colors, radius } from "../../src/themes/design";
 
@@ -43,7 +42,7 @@ export default function JoinQueue() {
 
     try {
       setJoining(true);
-      const existing = queueItems(await getCustomerQueues(String(userData.id))).some((queue: any) => !isFinishedQueueStatus(getQueueStatus(queue)));
+      const existing = queueItems(await getCustomerQueues(String(userData.id))).length > 0;
       if (existing) return Alert.alert("Active queue already exists", "Cancel or complete your current queue before joining another one.");
       const response = await createQueue({ shop_id: String(shopId), customer_id: String(userData.id), table_type_id: selected.id, userRequirements: notes.trim() });
       (navigation.navigate as any)("QueueConfirm", { queueData: { restaurant, phone: userData.phoneNumber, partySize, queueType: selected.name, tableTypeId: selected.id, notes: notes.trim(), queue: response?.data ?? response } });

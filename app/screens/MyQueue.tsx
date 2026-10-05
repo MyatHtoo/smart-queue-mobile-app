@@ -98,10 +98,10 @@ export default function MyQueue() {
       ]);
       const current = queueItems(response).map(mapQueue).filter((queue) => queue.id);
       const history = queueItems(historyResponse).map(mapQueue).filter((queue) => queue.id);
-      const historyIds = new Set(history.map((queue) => queue.id));
+      const currentIds = new Set(current.map((queue) => queue.id));
       const tableTypes = queueItems(tableTypeResponse);
       const tableTypeById = new Map(tableTypes.map((tableType) => [String(tableType?._id ?? tableType?.id), tableType]));
-      const mapped = [...current.filter((queue) => !historyIds.has(queue.id)), ...history].map((queue) => {
+      const mapped = [...current, ...history.filter((queue) => !currentIds.has(queue.id))].map((queue) => {
         const tableType = queue.tableTypeId ? tableTypeById.get(queue.tableTypeId) : undefined;
         return { ...queue, queueType: queue.queueType || textValue(tableType?.type ?? tableType?.name) || "Table type", tableCapacity: queue.tableCapacity ?? (Number(tableType?.capacity) || undefined) };
       });
