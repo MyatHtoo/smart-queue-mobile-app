@@ -80,7 +80,7 @@ export default function HomePage() {
               <Text style={{ color: colors.text, fontWeight: '900', fontSize: 14 }}>It’s your turn</Text>
               <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>Check in at {readyQueue.shop_id?.name ?? readyQueue.shop?.name ?? 'the restaurant'}.</Text>
             </View>
-            <TouchableOpacity onPress={() => (navigation.navigate as any)('MyQueue')}>
+            <TouchableOpacity onPress={() => (navigation.navigate as any)('MyQueues')}>
               <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12 }}>View</Text>
             </TouchableOpacity>
           </View>

@@ -9,6 +9,7 @@ import {
   getQueueId,
   getQueueNumber,
   getQueueStatus,
+  getQueueItems,
   getSortedActiveQueues,
   isFinishedQueueStatus,
   isTurnQueueStatus,
@@ -60,8 +61,12 @@ export default function ViewLive() {
         ? await getShopQueues(String(shopId))
         : await getQueueById(String(queueId));
       const queues = getSortedActiveQueues(response);
-      const queue = queues.find((item) => getQueueId(item) === String(queueId))
-        ?? (shopId ? (await getQueueById(String(queueId)))?.data : response?.data ?? response);
+      const queueResponse = shopId ? await getQueueById(String(queueId)) : response;
+      const directQueue = getQueueItems(queueResponse)[0] ?? queueResponse?.data ?? queueResponse;
+      const queue = queues.find((item) => getQueueId(item) === String(queueId)) ?? directQueue;
+      if (!queue || !getQueueId(queue)) {
+        throw new Error("This queue is no longer available.");
+      }
       const number = getQueueNumber(queue);
       const waitTime = getEstimatedWait(queue);
       const backendStatus = getQueueStatus(queue);
