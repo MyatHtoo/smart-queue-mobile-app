@@ -13,6 +13,7 @@ import { colors, radius } from "../../src/themes/design";
 const PAGE_SIZE = 5;
 type Section = "active" | "history";
 type Filter = "all" | "waiting" | "ready" | "checked_in" | "seated" | "completed" | "cancelled";
+type DisplayQueue = Queue & { recordSection: Section };
 
 const queueItems = (response: any): any[] => {
   const data = response?.data ?? response;
@@ -80,7 +81,7 @@ export default function MyQueue() {
   const [section, setSection] = useState<Section>("active");
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [queues, setQueues] = useState<Queue[]>([]);
+  const [queues, setQueues] = useState<DisplayQueue[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
@@ -96,16 +97,23 @@ export default function MyQueue() {
         getCancelledQueueIds(userData.id),
         getTableTypes().catch(() => []),
       ]);
-      const current = queueItems(response).map(mapQueue).filter((queue) => queue.id);
       const history = queueItems(historyResponse).map(mapQueue).filter((queue) => queue.id);
-      const currentIds = new Set(current.map((queue) => queue.id));
+      const historyKeys = new Set(history.map((queue) => `${queue.shopId}:${queue.queueNumber}`));
+      // History is authoritative. A short-lived cached active response can still
+      // contain a just-completed seated queue, so remove the matching stale copy.
+      const current = queueItems(response)
+        .map(mapQueue)
+        .filter((queue) => queue.id && !historyKeys.has(`${queue.shopId}:${queue.queueNumber}`));
       const tableTypes = queueItems(tableTypeResponse);
       const tableTypeById = new Map(tableTypes.map((tableType) => [String(tableType?._id ?? tableType?.id), tableType]));
-      const mapped = [...current, ...history.filter((queue) => !currentIds.has(queue.id))].map((queue) => {
+      const mapped: DisplayQueue[] = [
+        ...current.map((queue) => ({ ...queue, recordSection: "active" as const })),
+        ...history.map((queue) => ({ ...queue, recordSection: "history" as const })),
+      ].map((queue) => {
         const tableType = queue.tableTypeId ? tableTypeById.get(queue.tableTypeId) : undefined;
         return { ...queue, queueType: queue.queueType || textValue(tableType?.type ?? tableType?.name) || "Table type", tableCapacity: queue.tableCapacity ?? (Number(tableType?.capacity) || undefined) };
       });
-      setQueues(mapped.map((queue) => locallyCancelled.has(queue.id) ? { ...queue, status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : queue));
+      setQueues(mapped.map((queue) => locallyCancelled.has(queue.id) ? { ...queue, recordSection: "history", status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : queue));
     } catch (error: any) { Alert.alert("Unable to load queues", error?.message || "Please try again."); }
     finally { setLoading(false); setRefreshing(false); }
   }, [userData.id]);
@@ -120,13 +128,12 @@ export default function MyQueue() {
   }, [navigation, route.params?.initialSection]);
   useEffect(() => { setPage(1); }, [section, filter, search, newestFirst]);
 
-  const activeCount = queues.filter((queue) => queue.status !== "expired").length;
+  const activeCount = queues.filter((queue) => queue.recordSection === "active").length;
   const historyCount = queues.length - activeCount;
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return queues.filter((queue) => {
-      if (section === "active" && queue.status === "expired") return false;
-      if (section === "history" && queue.status !== "expired") return false;
+      if (queue.recordSection !== section) return false;
       if (filter === "waiting" && queue.status !== "active") return false;
       if (filter === "ready" && queue.status !== "ready") return false;
       if (filter === "checked_in" && queue.status !== "checked_in") return false;
@@ -141,7 +148,7 @@ export default function MyQueue() {
   const filters: { key: Filter; label: string }[] = section === "active" ? [{ key: "all", label: "All" }, { key: "waiting", label: "Waiting" }, { key: "ready", label: "Ready" }, { key: "checked_in", label: "Checked in" }, { key: "seated", label: "Seated" }] : [{ key: "all", label: "All" }, { key: "completed", label: "Completed" }, { key: "cancelled", label: "Cancelled" }];
 
   const handleCancel = (queue: Queue) => Alert.alert("Cancel queue?", `Leave queue ${queue.queueNumber || ""} at ${queue.restaurantName}?`, [{ text: "Keep queue", style: "cancel" }, { text: "Cancel queue", style: "destructive", onPress: async () => {
-    try { await cancelQueue(queue.id); await saveCancelledQueueId(userData.id || "", queue.id); setQueues((items) => items.map((item) => item.id === queue.id ? { ...item, status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : item)); }
+    try { await cancelQueue(queue.id); await saveCancelledQueueId(userData.id || "", queue.id); setQueues((items) => items.map((item) => item.id === queue.id ? { ...item, recordSection: "history", status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : item)); }
     catch (error: any) { Alert.alert("Unable to cancel", error?.message || "Please try again."); }
   } }]);
   const viewLive = (queue: Queue) => (navigation.navigate as any)("Screens", { screen: "LiveQueue", params: { restaurant: { name: queue.restaurantName, cuisine: queue.queueType || "Restaurant" }, queueData: { queueId: queue.id, shopId: queue.shopId, queueNumber: Number(queue.queueNumber || 0), partySize: queue.partySize, queueType: queue.queueType, joinedAt: queue.joinedAt, phone: queue.customerPhone, notes: queue.notes } } });
