@@ -722,7 +722,7 @@ export const getShopQueues = (shopId: string) => {
 };
 
 export const getCustomerQueues = (customerId: string) => {
-  return request<any>(`/queues/customer/${encodeURIComponent(customerId)}`, {
+  return request<any>(`/queues/customer/${encodeURIComponent(customerId)}?t=${Date.now()}`, {
     method: 'GET',
   });
 };
