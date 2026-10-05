@@ -9,6 +9,7 @@ import QR from '../../app/screens/QR';
 import LiveLocationScreen from '../../app/screens/LiveLocationScreen';
 import { colors } from '../themes/design';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 const Tab = createBottomTabNavigator();
@@ -17,6 +18,7 @@ const LiveLocationTab = () => <LiveLocationScreen embedded />;
 export default function BottomTabs() {
     const navigation = useNavigation();
     const { unreadCount } = useNotifications();
+    const insets = useSafeAreaInsets();
     return (
         <Tab.Navigator
             initialRouteName="HomePage"
@@ -25,7 +27,14 @@ export default function BottomTabs() {
                 tabBarActiveTintColor: colors.primary,
                 tabBarInactiveTintColor: colors.textMuted,
                 tabBarHideOnKeyboard: true,
-                tabBarStyle: { height: 72, paddingTop: 7, paddingBottom: 8, borderTopColor: colors.border, backgroundColor: '#FFFFFF' }
+                tabBarStyle: {
+                    height: 64 + insets.bottom,
+                    paddingTop: 7,
+                    paddingBottom: Math.max(8, insets.bottom),
+                    borderTopColor: colors.border,
+                    backgroundColor: '#FFFFFF',
+                },
+                tabBarItemStyle: { paddingVertical: 2 },
             }}>
 
             <Tab.Screen
