@@ -728,7 +728,7 @@ export const getCustomerQueues = (customerId: string) => {
 };
 
 export const getCustomerQueueHistory = (customerId: string) => {
-  return request<any>(`/queues/getQueue-history/customer/${encodeURIComponent(customerId)}`, {
+  return request<any>(`/queues/getQueue-history/customer/${encodeURIComponent(customerId)}?t=${Date.now()}`, {
     method: 'GET',
   });
 };
