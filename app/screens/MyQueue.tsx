@@ -98,7 +98,11 @@ export default function MyQueue() {
         getTableTypes().catch(() => []),
       ]);
       const history = queueItems(historyResponse).map(mapQueue).filter((queue) => queue.id);
-      const historyKeys = new Set(history.map((queue) => `${queue.shopId}:${queue.queueNumber}`));
+      const historyKeys = new Set(
+        history
+          .filter((queue) => queue.status === "expired")
+          .map((queue) => `${queue.shopId}:${queue.queueNumber}`),
+      );
       // History is authoritative. A short-lived cached active response can still
       // contain a just-completed seated queue, so remove the matching stale copy.
       const current = queueItems(response)
