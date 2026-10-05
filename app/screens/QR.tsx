@@ -78,7 +78,7 @@ export default function QR() {
   };
 
   if (!permission) return <View style={styles.centerState}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.stateTitle}>Preparing camera</Text><Text style={styles.stateText}>Please wait a moment…</Text></View>;
-  if (!permission.granted) return <View style={styles.centerState}><View style={styles.permissionIcon}><Ionicons name="camera-outline" size={38} color={colors.primary} /></View><Text style={styles.stateTitle}>Camera access needed</Text><Text style={styles.stateText}>Smart Queue uses your camera only to scan the shop’s check-in QR code.</Text><TouchableOpacity onPress={requestPermission} style={[styles.primaryButton, { width: "100%", marginTop: 20 }]}><Text style={{ color: "#FFFFFF", fontWeight: "900" }}>Allow camera access</Text></TouchableOpacity>{permission.canAskAgain === false && <TouchableOpacity onPress={Linking.openSettings} style={{ padding: 15 }}><Text style={{ color: colors.primary, fontWeight: "800" }}>Open phone settings</Text></TouchableOpacity>}</View>;
+  if (!permission.granted) return <View style={styles.centerState}><View style={styles.permissionIcon}><Ionicons name="camera-outline" size={38} color={colors.primary} /></View><Text style={styles.stateTitle}>Camera access needed</Text><Text style={styles.stateText}>Smart Queue uses your camera only to scan the shop’s check-in QR code.</Text><TouchableOpacity onPress={requestPermission} style={[styles.primaryButton, styles.permissionButton]}><Text style={{ color: "#FFFFFF", fontWeight: "900" }}>Allow camera access</Text></TouchableOpacity>{permission.canAskAgain === false && <TouchableOpacity onPress={Linking.openSettings} style={{ padding: 15 }}><Text style={{ color: colors.primary, fontWeight: "800" }}>Open phone settings</Text></TouchableOpacity>}</View>;
 
   const queue = activeQueues[0];
   const shop = queue?.shop_id ?? queue?.shopId ?? queue?.shop ?? {};
@@ -96,6 +96,7 @@ export default function QR() {
 
 const styles = StyleSheet.create({
   centerState: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", paddingHorizontal: 28 },
+  permissionButton: { flex: 0, width: "100%", minHeight: 50, marginTop: 20 },
   permissionIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", marginBottom: 18 },
   stateTitle: { color: colors.text, fontSize: 20, fontWeight: "900", marginTop: 16 }, stateText: { color: colors.textMuted, fontSize: 14, lineHeight: 21, textAlign: "center", marginTop: 8 },
   queueStrip: { minHeight: 70, margin: 16, marginBottom: 12, borderRadius: radius.medium, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 13, flexDirection: "row", alignItems: "center", ...cardShadow },

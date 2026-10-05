@@ -34,15 +34,16 @@ export default function LiveLocationScreen({ embedded = false }: { embedded?: bo
       longitude: shop.longitude,
       name: String(shop.name ?? "Shop"),
       nearby: shop.nearby,
+      imageUrl: String(shop.shopImg ?? shop.logo ?? shop.image?.uri ?? ""),
       distance: shop.distance == null ? "" : shop.distance < 1000 ? `${Math.round(shop.distance)} m away` : `${(shop.distance / 1000).toFixed(1)} km away`,
     }));
-    return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>html,body,#map{height:100%;margin:0;background:#eef4f6}.leaflet-control-attribution{font:9px sans-serif}.shop-label{font:700 12px sans-serif;color:#102033}.user-dot{width:14px;height:14px;border:3px solid white;border-radius:50%;background:#4285f4;box-shadow:0 0 0 2px #4285f4}</style></head><body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+    return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>html,body,#map{height:100%;margin:0;background:#eef4f6}.leaflet-control-attribution{font:9px sans-serif}.shop-label{font:700 12px sans-serif;color:#102033}.user-dot{width:14px;height:14px;border:3px solid white;border-radius:50%;background:#4285f4;box-shadow:0 0 0 2px #4285f4}.shop-marker-image,.shop-marker-fallback{width:42px;height:42px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(15,23,42,.3);box-sizing:border-box}.shop-marker-image{object-fit:cover;background:#e6f4f7}.shop-marker-fallback{display:flex;align-items:center;justify-content:center;background:#1e7a9b;color:white;font:700 20px sans-serif}</style></head><body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
       const center=[${location.latitude},${location.longitude}];
       const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(center,14);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
       L.circle(center,{radius:${MAX_QUEUE_DISTANCE_METERS},color:'#1E7A9B',weight:2,fillColor:'#1E7A9B',fillOpacity:.12}).addTo(map);
       L.marker(center,{icon:L.divIcon({className:'',html:'<div class="user-dot"></div>',iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map).bindPopup('<b>Your location</b>');
-      ${JSON.stringify(markers)}.forEach(s=>L.circleMarker([s.latitude,s.longitude],{radius:13,color:'#fff',weight:4,fillColor:s.nearby?'#1E7A9B':'#9AA7B4',fillOpacity:1}).addTo(map).bindPopup('<div class="shop-label">'+s.name+'</div><div>'+s.distance+' · '+(s.nearby?'Queue available':'Outside 1 km')+'</div>'));
+      ${JSON.stringify(markers)}.forEach(s=>{const image=s.imageUrl?'<img class="shop-marker-image" src="'+s.imageUrl+'">':'<div class="shop-marker-fallback"></div>';L.marker([s.latitude,s.longitude],{icon:L.divIcon({className:'shop-marker',html:image,iconSize:[48,48],iconAnchor:[24,24]})}).addTo(map).bindPopup('<div class="shop-label">'+s.name+'</div><div>'+s.distance+' · '+(s.nearby?'Queue available':'Outside 1 km')+'</div>')});
       window.focusUser=()=>map.setView(center,14,{animate:true});
     </script></body></html>`;
   }, [location, mapped]);

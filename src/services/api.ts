@@ -695,6 +695,12 @@ export const getShops = () => {
   });
 };
 
+export const getTableTypes = () => {
+  return request<any>('/table-types', {
+    method: 'GET',
+  });
+};
+
 export type CreateQueuePayload = {
   shop_id: string;
   customer_id: string;
@@ -717,6 +723,12 @@ export const getShopQueues = (shopId: string) => {
 
 export const getCustomerQueues = (customerId: string) => {
   return request<any>(`/queues/customer/${encodeURIComponent(customerId)}`, {
+    method: 'GET',
+  });
+};
+
+export const getCustomerQueueHistory = (customerId: string) => {
+  return request<any>(`/queues/getQueue-history/customer/${encodeURIComponent(customerId)}`, {
     method: 'GET',
   });
 };

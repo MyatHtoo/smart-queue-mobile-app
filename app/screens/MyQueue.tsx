@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation, useRoute, TabActions } from "@react-navi
 import QueueCard from "../../components/QueueCard";
 import type { Queue } from "../../src/constants/mockData";
 import { useUser } from "../../src/contexts/UserContext";
-import { cancelQueue, getCustomerQueues } from "../../src/services/api";
+import { cancelQueue, getCustomerQueueHistory, getCustomerQueues, getTableTypes } from "../../src/services/api";
 import { getCancelledQueueIds, saveCancelledQueueId } from "../../src/utils/CancelledQueueStore";
 import { getQueueStatus, isFinishedQueueStatus, isTurnQueueStatus } from "../../src/utils/LiveQueue";
 import { colors, radius } from "../../src/themes/design";
@@ -40,6 +40,7 @@ const mapQueue = (item: any): Queue => {
   const joinedRaw = item?.createdAt ?? item?.joinedAt ?? item?.created_at;
   const updatedRaw = item?.updatedAt ?? item?.updated_at;
   const cancelled = ["cancelled", "canceled"].includes(rawStatus);
+  const tableCapacity = Number(table?.capacity ?? item?.table_capacity ?? item?.tableCapacity);
 
   return {
     id: String(item?._id ?? item?.id ?? item?.queue_id ?? item?.queueId ?? ""),
@@ -47,7 +48,9 @@ const mapQueue = (item: any): Queue => {
     restaurantName: textValue(shop?.name ?? shop?.shopName ?? item?.shopName) || "Unknown shop",
     queueNumber: textValue(item?.queueNumber ?? item?.queue_number ?? item?.number ?? item?.queueNo),
     partySize: Number.isFinite(partySize) && partySize > 0 ? partySize : undefined,
-    queueType: textValue(table?.name ?? table?.title ?? item?.queueType ?? item?.queue_type),
+    queueType: textValue(item?.table_type_name ?? item?.tableTypeName ?? table?.name ?? table?.title ?? table?.type ?? item?.queueType ?? item?.queue_type),
+    tableTypeId: String(item?.table_type_id?._id ?? item?.table_type_id ?? item?.tableTypeId?._id ?? item?.tableTypeId ?? ""),
+    tableCapacity: Number.isFinite(tableCapacity) && tableCapacity > 0 ? tableCapacity : undefined,
     position: finished || ready || checkedIn || seated ? 0 : Number(item?.position ?? item?.queuePosition ?? item?.peopleAhead ?? 0),
     totalPeople: finished || ready || checkedIn || seated ? 0 : Number(item?.totalPeople ?? item?.total_queue ?? item?.peopleAhead ?? 0),
     estimatedWait: finished ? "Completed" : seated ? "Seated" : checkedIn ? "Checked in" : ready ? "Your turn" : waitText,
@@ -86,8 +89,21 @@ export default function MyQueue() {
     if (!userData.id) { setQueues([]); setLoading(false); return; }
     refresh ? setRefreshing(true) : setLoading(true);
     try {
-      const [response, locallyCancelled] = await Promise.all([getCustomerQueues(userData.id), getCancelledQueueIds(userData.id)]);
-      const mapped = queueItems(response).map(mapQueue).filter((queue) => queue.id);
+      const [response, historyResponse, locallyCancelled, tableTypeResponse] = await Promise.all([
+        getCustomerQueues(userData.id),
+        getCustomerQueueHistory(userData.id),
+        getCancelledQueueIds(userData.id),
+        getTableTypes().catch(() => []),
+      ]);
+      const current = queueItems(response).map(mapQueue).filter((queue) => queue.id);
+      const history = queueItems(historyResponse).map(mapQueue).filter((queue) => queue.id);
+      const historyIds = new Set(history.map((queue) => queue.id));
+      const tableTypes = queueItems(tableTypeResponse);
+      const tableTypeById = new Map(tableTypes.map((tableType) => [String(tableType?._id ?? tableType?.id), tableType]));
+      const mapped = [...current.filter((queue) => !historyIds.has(queue.id)), ...history].map((queue) => {
+        const tableType = queue.tableTypeId ? tableTypeById.get(queue.tableTypeId) : undefined;
+        return { ...queue, queueType: queue.queueType || textValue(tableType?.type ?? tableType?.name) || "Table type", tableCapacity: queue.tableCapacity ?? (Number(tableType?.capacity) || undefined) };
+      });
       setQueues(mapped.map((queue) => locallyCancelled.has(queue.id) ? { ...queue, status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : queue));
     } catch (error: any) { Alert.alert("Unable to load queues", error?.message || "Please try again."); }
     finally { setLoading(false); setRefreshing(false); }

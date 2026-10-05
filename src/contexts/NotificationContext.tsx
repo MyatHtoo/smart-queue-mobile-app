@@ -34,6 +34,8 @@ type NotificationContextValue = {
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
 const enabledKey = "smart-queue:notifications-enabled";
+const notificationChannelForType = (type?: string) =>
+  type === "QUEUE_READY" || type === "QR_SCANNED" ? "queue-ready" : "queue-updates";
 const listKey = (id: string) => `@smart_queue_notifications:${id}`;
 const snapshotKey = (id: string) => `@smart_queue_notification_snapshot:${id}`;
 const queueItems = (response: any): any[] => {
@@ -66,7 +68,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!customerId || !token) { setNotifications([]); return; }
     AsyncStorage.getItem(listKey(customerId)).then((value) => setNotifications(value ? JSON.parse(value) : [])).catch(() => setNotifications([]));
-    if (Platform.OS === "android" && NativeNotifications) void NativeNotifications.setNotificationChannelAsync("queue-updates", { name: "Queue updates", importance: NativeNotifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: "#1E7A9B" });
+    if (Platform.OS === "android" && NativeNotifications) void Promise.all([
+      NativeNotifications.setNotificationChannelAsync("queue-ready", {
+        name: "Queue ready",
+        importance: NativeNotifications.AndroidImportance.MAX,
+        sound: "default",
+        vibrationPattern: [0, 400, 200, 400],
+        lightColor: "#16A34A",
+      }),
+      NativeNotifications.setNotificationChannelAsync("queue-updates", {
+        name: "Queue updates",
+        importance: NativeNotifications.AndroidImportance.HIGH,
+        sound: "default",
+        vibrationPattern: [0, 250, 150, 250],
+        lightColor: "#1E7A9B",
+      }),
+    ]);
   }, [customerId, token]);
 
   useEffect(() => {
@@ -84,6 +101,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     })();
   }, [customerId, token]);
 
+  useEffect(() => {
+    if (!customerId || !token || !NativeNotifications) return;
+    const subscription = NativeNotifications.addNotificationReceivedListener((notification) => {
+      const content = notification.request.content;
+      const data = content.data as { id?: string; queueId?: string; queue_id?: string; type?: string } | undefined;
+      const item: AppNotification = {
+        id: String(data?.id ?? `${Date.now()}`),
+        title: content.title ?? "Queue update",
+        message: content.body ?? "",
+        type: data?.type === "QUEUE_READY" || data?.type === "QR_SCANNED" ? "ready" : data?.type === "QUEUE_CANCELLED" ? "alert" : "queue",
+        createdAt: new Date().toISOString(),
+        read: false,
+        queueId: data?.queueId ?? data?.queue_id,
+      };
+      void AsyncStorage.getItem(listKey(customerId)).then((value) => {
+        const existing: AppNotification[] = value ? JSON.parse(value) : [];
+        if (!existing.some((current) => current.id === item.id)) void persist([item, ...existing]);
+      });
+    });
+    return () => subscription.remove();
+  }, [customerId, persist, token]);
+
   const notify = useCallback(async (item: AppNotification) => {
     if (!NativeNotifications) return;
     const enabled = await AsyncStorage.getItem(enabledKey);
@@ -91,7 +130,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const permission = await NativeNotifications.getPermissionsAsync();
     const finalPermission = permission.granted ? permission : await NativeNotifications.requestPermissionsAsync();
     if (!finalPermission.granted) return;
-    await NativeNotifications.scheduleNotificationAsync({ content: { title: item.title, body: item.message, data: { queueId: item.queueId }, sound: true }, trigger: null });
+    await NativeNotifications.scheduleNotificationAsync({
+      content: {
+        title: item.title,
+        body: item.message,
+        data: { queueId: item.queueId },
+        sound: "default",
+        priority: "high",
+        ...(Platform.OS === "android" ? { channelId: notificationChannelForType(item.type) } : {}),
+      },
+      trigger: null,
+    });
   }, []);
 
   const refresh = useCallback(async () => {
