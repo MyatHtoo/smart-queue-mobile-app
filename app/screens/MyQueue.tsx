@@ -98,16 +98,10 @@ export default function MyQueue() {
         getTableTypes().catch(() => []),
       ]);
       const history = queueItems(historyResponse).map(mapQueue).filter((queue) => queue.id);
-      const historyKeys = new Set(
-        history
-          .filter((queue) => queue.status === "expired")
-          .map((queue) => `${queue.shopId}:${queue.queueNumber}`),
-      );
-      // History is authoritative. A short-lived cached active response can still
-      // contain a just-completed seated queue, so remove the matching stale copy.
-      const current = queueItems(response)
-        .map(mapQueue)
-        .filter((queue) => queue.id && !historyKeys.has(`${queue.shopId}:${queue.queueNumber}`));
+      // The active and history endpoints are the source of truth for their own
+      // sections. Queue numbers can repeat (an immediately ready queue is #0),
+      // so they must never be used to deduplicate records across sections.
+      const current = queueItems(response).map(mapQueue).filter((queue) => queue.id);
       const tableTypes = queueItems(tableTypeResponse);
       const tableTypeById = new Map(tableTypes.map((tableType) => [String(tableType?._id ?? tableType?.id), tableType]));
       const mapped: DisplayQueue[] = [
