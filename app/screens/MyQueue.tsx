@@ -12,7 +12,7 @@ import { colors, radius } from "../../src/themes/design";
 
 const PAGE_SIZE = 5;
 type Section = "active" | "history";
-type Filter = "all" | "waiting" | "ready" | "checked_in" | "seated" | "completed" | "cancelled";
+type Filter = "all" | "waiting" | "ready" | "checked_in" | "seated" | "completed" | "expired" | "cancelled";
 type DisplayQueue = Queue & { recordSection: Section };
 
 const queueItems = (response: any): any[] => {
@@ -41,6 +41,7 @@ const mapQueue = (item: any): Queue => {
   const joinedRaw = item?.createdAt ?? item?.joinedAt ?? item?.created_at;
   const updatedRaw = item?.updatedAt ?? item?.updated_at;
   const cancelled = ["cancelled", "canceled"].includes(rawStatus);
+  const noShow = ["expired", "no show"].includes(rawStatus) || ["no-show", "no_show"].includes(String(item?.expirationReason ?? item?.expiration_reason ?? "").toLowerCase());
   const tableCapacity = Number(table?.capacity ?? item?.table_capacity ?? item?.tableCapacity);
 
   return {
@@ -54,14 +55,14 @@ const mapQueue = (item: any): Queue => {
     tableCapacity: Number.isFinite(tableCapacity) && tableCapacity > 0 ? tableCapacity : undefined,
     position: finished || ready || checkedIn || seated ? 0 : Number(item?.position ?? item?.queuePosition ?? item?.peopleAhead ?? 0),
     totalPeople: finished || ready || checkedIn || seated ? 0 : Number(item?.totalPeople ?? item?.total_queue ?? item?.peopleAhead ?? 0),
-    estimatedWait: finished ? "Completed" : seated ? "Seated" : checkedIn ? "Checked in" : ready ? "Your turn" : waitText,
+    estimatedWait: noShow ? "Expired" : finished ? "Completed" : seated ? "Seated" : checkedIn ? "Checked in" : ready ? "Your turn" : waitText,
     joinedAt: dateValue(joinedRaw),
     updatedAt: updatedRaw ? dateValue(updatedRaw) : undefined,
     completedAt: item?.completedAt ? dateValue(item.completedAt) : undefined,
     noShowDeadline: item?.noShowDeadline ?? item?.no_show_deadline ?? undefined,
     status: finished ? "expired" : seated ? "seated" : checkedIn ? "checked_in" : ready ? "ready" : "active",
     rawStatus,
-    statusLabel: cancelled ? "Cancelled" : seated ? "Seated" : checkedIn ? "QR scanned" : ready ? "Ready for you" : finished ? "Completed" : rawStatus === "waiting" ? "Waiting" : rawStatus.replace(/\b\w/g, (letter: string) => letter.toUpperCase()),
+    statusLabel: cancelled ? "Cancelled" : noShow ? "Expired · No-show" : seated ? "Seated" : checkedIn ? "QR scanned" : ready ? "Ready for you" : finished ? "Completed" : rawStatus === "waiting" ? "Waiting" : rawStatus.replace(/\b\w/g, (letter: string) => letter.toUpperCase()),
     notes: textValue(item?.userRequirements ?? item?.requirements ?? item?.notes),
     customerPhone: textValue(item?.phoneNumber ?? item?.phone ?? item?.customer?.phoneNumber),
     shopPhone: textValue(shop?.phoneNumber ?? shop?.phone),
@@ -136,14 +137,15 @@ export default function MyQueue() {
       if (filter === "ready" && queue.status !== "ready") return false;
       if (filter === "checked_in" && queue.status !== "checked_in") return false;
       if (filter === "seated" && queue.status !== "seated") return false;
-      if (filter === "completed" && (queue.status !== "expired" || queue.rawStatus === "cancelled" || queue.rawStatus === "canceled")) return false;
+      if (filter === "completed" && (queue.status !== "expired" || ["cancelled", "canceled", "expired", "no show"].includes(queue.rawStatus || ""))) return false;
+      if (filter === "expired" && !["expired", "no show"].includes(queue.rawStatus || "")) return false;
       if (filter === "cancelled" && !["cancelled", "canceled"].includes(queue.rawStatus || "")) return false;
       return !query || [queue.restaurantName, queue.queueNumber, queue.queueType, queue.statusLabel, queue.shopAddress].some((value) => String(value ?? "").toLowerCase().includes(query));
     }).sort((a, b) => (newestFirst ? -1 : 1) * (new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()));
   }, [queues, section, filter, search, newestFirst]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const filters: { key: Filter; label: string }[] = section === "active" ? [{ key: "all", label: "All" }, { key: "waiting", label: "Waiting" }, { key: "ready", label: "Ready" }, { key: "checked_in", label: "Checked in" }, { key: "seated", label: "Seated" }] : [{ key: "all", label: "All" }, { key: "completed", label: "Completed" }, { key: "cancelled", label: "Cancelled" }];
+  const filters: { key: Filter; label: string }[] = section === "active" ? [{ key: "all", label: "All" }, { key: "waiting", label: "Waiting" }, { key: "ready", label: "Ready" }, { key: "checked_in", label: "Checked in" }, { key: "seated", label: "Seated" }] : [{ key: "all", label: "All" }, { key: "completed", label: "Completed" }, { key: "expired", label: "Expired" }, { key: "cancelled", label: "Cancelled" }];
 
   const handleCancel = (queue: Queue) => Alert.alert("Cancel queue?", `Leave queue ${queue.queueNumber || ""} at ${queue.restaurantName}?`, [{ text: "Keep queue", style: "cancel" }, { text: "Cancel queue", style: "destructive", onPress: async () => {
     try { await cancelQueue(queue.id); await saveCancelledQueueId(userData.id || "", queue.id); setQueues((items) => items.map((item) => item.id === queue.id ? { ...item, recordSection: "history", status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : item)); }

@@ -13,7 +13,7 @@ const statusStyle = (queue: Queue) => queue.status === "seated"
   : queue.status === "checked_in" ? { color: "#0284C7", background: "#F0F9FF", icon: "qr-code" as const }
   : queue.status === "ready" ? { color: colors.success, background: colors.successSoft, icon: "megaphone" as const }
   : queue.status === "active" ? { color: colors.primary, background: colors.primarySoft, icon: "time" as const }
-  : queue.rawStatus === "cancelled" || queue.rawStatus === "canceled" ? { color: colors.danger, background: "#FEF2F2", icon: "close-circle" as const }
+  : ["cancelled", "canceled", "expired", "no show"].includes(queue.rawStatus || "") ? { color: colors.danger, background: "#FEF2F2", icon: "close-circle" as const }
   : { color: colors.textMuted, background: "#F1F5F9", icon: "checkmark-done" as const };
 
 function Detail({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string }) {
@@ -22,8 +22,8 @@ function Detail({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; 
 }
 
 function Progress({ queue }: { queue: Queue }) {
-  const current = statusIndex(queue); const cancelled = ["cancelled", "canceled"].includes(queue.rawStatus || "");
-  if (queue.status === "expired" && cancelled) return <View style={{ marginTop: 15, padding: 11, borderRadius: 13, backgroundColor: "#FEF2F2", flexDirection: "row", alignItems: "center" }}><Ionicons name="close-circle" size={18} color={colors.danger} /><Text style={{ color: colors.danger, fontWeight: "800", fontSize: 12, marginLeft: 7 }}>This queue was cancelled</Text></View>;
+  const current = statusIndex(queue); const cancelled = ["cancelled", "canceled"].includes(queue.rawStatus || ""); const noShow = ["expired", "no show"].includes(queue.rawStatus || "");
+  if (queue.status === "expired" && (cancelled || noShow)) return <View style={{ marginTop: 15, padding: 11, borderRadius: 13, backgroundColor: "#FEF2F2", flexDirection: "row", alignItems: "center" }}><Ionicons name="close-circle" size={18} color={colors.danger} /><Text style={{ color: colors.danger, fontWeight: "800", fontSize: 12, marginLeft: 7 }}>{noShow ? "Check-in expired · No-show" : "This queue was cancelled"}</Text></View>;
   return <View style={{ marginTop: 17 }}><View style={{ flexDirection: "row", alignItems: "center" }}>{stages.map((stage, index) => <View key={stage} style={{ flex: index === stages.length - 1 ? 0 : 1, flexDirection: "row", alignItems: "center" }}><View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: index <= current ? colors.primary : colors.surface, borderWidth: 2, borderColor: index <= current ? colors.primary : colors.disabled, alignItems: "center", justifyContent: "center" }}>{index < current ? <Ionicons name="checkmark" size={11} color="#FFFFFF" /> : index === current ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FFFFFF" }} /> : null}</View>{index < stages.length - 1 && <View style={{ flex: 1, height: 2, backgroundColor: index < current ? colors.primary : colors.border }} />}</View>)}</View><View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 5 }}>{stages.map((stage, index) => <Text key={stage} style={{ width: "20%", textAlign: index === 0 ? "left" : index === stages.length - 1 ? "right" : "center", color: index === current ? colors.primary : colors.textMuted, fontSize: 8, fontWeight: index === current ? "900" : "600" }}>{stage}</Text>)}</View></View>;
 }
 

@@ -32,7 +32,7 @@ export const isTurnQueueStatus = (status: string) =>
   );
 
 export const isFinishedQueueStatus = (status: string) =>
-  ["finished", "completed", "complete", "served", "done", "expired", "cancelled", "canceled"].includes(
+  ["finished", "completed", "complete", "served", "done", "expired", "no show", "cancelled", "canceled"].includes(
     status.trim().toLowerCase().replace(/[_-]+/g, " ")
   );
 
