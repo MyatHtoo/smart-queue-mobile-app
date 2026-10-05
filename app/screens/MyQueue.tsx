@@ -57,6 +57,7 @@ const mapQueue = (item: any): Queue => {
     joinedAt: dateValue(joinedRaw),
     updatedAt: updatedRaw ? dateValue(updatedRaw) : undefined,
     completedAt: item?.completedAt ? dateValue(item.completedAt) : undefined,
+    noShowDeadline: item?.noShowDeadline ?? item?.no_show_deadline ?? undefined,
     status: finished ? "expired" : seated ? "seated" : checkedIn ? "checked_in" : ready ? "ready" : "active",
     rawStatus,
     statusLabel: cancelled ? "Cancelled" : seated ? "Seated" : checkedIn ? "QR scanned" : ready ? "Ready for you" : finished ? "Completed" : rawStatus === "waiting" ? "Waiting" : rawStatus.replace(/\b\w/g, (letter: string) => letter.toUpperCase()),

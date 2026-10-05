@@ -22,6 +22,7 @@ export interface Queue {
   customerPhone?: string;
   updatedAt?: string;
   completedAt?: string;
+  noShowDeadline?: string;
 }
 
 export const MOCK_ACTIVE_QUEUES: Queue[] = [

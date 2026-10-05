@@ -1,9 +1,12 @@
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Chip, Searchbar } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import RestaurantsCard from '../../components/RestaurantsCard';
+import CheckInCountdown from '../../components/CheckInCountdown';
+import { getCustomerQueues } from '../../src/services/api';
+import { useUser } from '../../src/contexts/UserContext';
 import { useNearbyShops } from '../../src/hooks/useNearbyShops';
 import { colors, radius } from '../../src/themes/design';
 
@@ -11,7 +14,30 @@ export default function HomePage() {
   const navigation = useNavigation();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'nearby' | 'available'>('all');
+  const { userData } = useUser();
+  const [readyQueue, setReadyQueue] = useState<any>();
   const { shops, loading, refreshing, locationStatus, error, reload } = useNearbyShops();
+  const loadReadyQueue = useCallback(async () => {
+    if (!userData.id) return;
+    try {
+      const response = await getCustomerQueues(userData.id);
+      const data = response?.data ?? response;
+      const queues = Array.isArray(data) ? data : [];
+      const ready = queues.find((queue: any) => {
+        const status = String(queue?.status ?? '').toLowerCase();
+        return (status === 'ready to seat' || status === 'ready') && queue?.noShowDeadline;
+      });
+      setReadyQueue(ready);
+    } catch {
+      setReadyQueue(undefined);
+    }
+  }, [userData.id]);
+
+  useEffect(() => {
+    loadReadyQueue();
+    const timer = setInterval(loadReadyQueue, 30_000);
+    return () => clearInterval(timer);
+  }, [loadReadyQueue]);
   const nearbyCount = shops.filter((shop) => shop.isWithinServiceArea).length;
   const visible = useMemo(() => shops.filter((shop) => {
     const matches = `${shop.name} ${shop.shopType} ${shop.cuisine}`.toLowerCase().includes(query.trim().toLowerCase());
@@ -46,6 +72,20 @@ export default function HomePage() {
           </View>
           <TouchableOpacity onPress={reload}><Ionicons name="refresh" size={21} color={colors.primary} /></TouchableOpacity>
         </View>
+
+        {readyQueue && <View style={{ marginHorizontal: 16, marginTop: 16, padding: 14, borderRadius: radius.medium, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#BBF7D0' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="megaphone" size={20} color={colors.success} />
+            <View style={{ flex: 1, marginLeft: 9 }}>
+              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 14 }}>It’s your turn</Text>
+              <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>Check in at {readyQueue.shop_id?.name ?? readyQueue.shop?.name ?? 'the restaurant'}.</Text>
+            </View>
+            <TouchableOpacity onPress={() => (navigation.navigate as any)('MyQueue')}>
+              <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12 }}>View</Text>
+            </TouchableOpacity>
+          </View>
+          <CheckInCountdown deadline={readyQueue.noShowDeadline} />
+        </View>}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8, gap: 8 }}>
           {[['all', 'All shops'], ['nearby', 'Within 1 km'], ['available', 'Join now']].map(([value, label]) => (
