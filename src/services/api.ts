@@ -715,8 +715,20 @@ export const getShopQueues = (shopId: string) => {
   });
 };
 
+export const getTableStatus = (shopId: string) => {
+  return request<any>(`/queues/get-table-status/${encodeURIComponent(shopId)}`, {
+    method: 'GET',
+  });
+};
+
 export const getCustomerQueues = (customerId: string) => {
   return request<any>(`/queues/customer/${encodeURIComponent(customerId)}`, {
+    method: 'GET',
+  });
+};
+
+export const getCustomerQueueHistory = (customerId: string) => {
+  return request<any>(`/queues/getQueue-history/customer/${encodeURIComponent(customerId)}`, {
     method: 'GET',
   });
 };
@@ -777,7 +789,9 @@ export default {
   getShops,
   createQueue,
   getShopQueues,
+  getTableStatus,
   getCustomerQueues,
+  getCustomerQueueHistory,
   getQueueById,
   scanQueueQr,
   cancelQueue,

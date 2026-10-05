@@ -24,6 +24,12 @@
       "expo-status-bar",
       "expo-font",
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "246fa8b5-67c2-4902-9a94-7281b0b3dd71"
+      }
+    },
+    "owner": "htayhtaythwe"
   }
 }

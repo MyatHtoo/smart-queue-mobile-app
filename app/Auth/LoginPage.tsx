@@ -47,6 +47,7 @@ export default function LoginPage() {
       setUserData({ id, name: user?.username || user?.name || email || phoneNumber, email, phoneNumber, profileImage, password: "", token });
       if (apiImage) await saveProfileImageForAccount({ id, email, phoneNumber }, apiImage);
       await setToken(token);
+      navigation.reset({ index: 0, routes: [{ name: "MainTabs" as never }] });
     } catch (error: any) { setErrors({ form: error?.message || "Incorrect email, phone number, or password." }); }
     finally { setLoading(false); }
   };

@@ -19,6 +19,7 @@ import { useUser } from "./src/contexts/UserContext";
 import { ActivityIndicator, View } from "react-native";
 import { colors } from "./src/themes/design";
 import { NotificationProvider } from "./src/contexts/NotificationContext";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 function AppNavigator() {
   const { token, isLoading } = useUser();
@@ -62,8 +63,10 @@ function AppNavigator() {
 
 export default function App() {
   return (
-    <UserProvider>
-      <NotificationProvider><AppNavigator /></NotificationProvider>
-    </UserProvider>
+    <SafeAreaProvider>
+      <UserProvider>
+        <NotificationProvider><AppNavigator /></NotificationProvider>
+      </UserProvider>
+    </SafeAreaProvider>
   );
 }
