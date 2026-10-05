@@ -27,12 +27,12 @@ export const getQueueStatus = (queue: any) =>
     .replace(/[_-]+/g, " ");
 
 export const isTurnQueueStatus = (status: string) =>
-  ["ready to seat", "qr scanned", "seated"].includes(
+  ["ready to seat", "qr scanned"].includes(
     status.trim().toLowerCase().replace(/[_-]+/g, " ")
   );
 
 export const isFinishedQueueStatus = (status: string) =>
-  ["finished", "completed", "complete", "served", "done", "expired", "cancelled", "canceled"].includes(
+  ["finished", "completed", "complete", "served", "done", "seated", "serving", "in service", "expired", "cancelled", "canceled"].includes(
     status.trim().toLowerCase().replace(/[_-]+/g, " ")
   );
 

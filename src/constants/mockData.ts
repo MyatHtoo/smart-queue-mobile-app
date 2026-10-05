@@ -17,6 +17,11 @@ export interface Queue {
   shopImage?: string;
   shopAddress?: string;
   shopPhone?: string;
+  tableNo?: string;
+  tableCapacity?: number;
+  tableTypeId?: string;
+  availableTableCount?: number;
+  totalTableCount?: number;
   customerPhone?: string;
   updatedAt?: string;
   completedAt?: string;

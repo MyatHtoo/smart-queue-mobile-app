@@ -34,7 +34,10 @@ type NotificationContextValue = {
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
 const enabledKey = "smart-queue:notifications-enabled";
+export const notificationChannelForType = (type?: string) =>
+  type === "QUEUE_READY" || type === "QR_SCANNED" ? "queue-ready" : "queue-updates";
 const listKey = (id: string) => `@smart_queue_notifications:${id}`;
+const readOverridesKey = (id: string) => `@smart_queue_notification_read_overrides:${id}`;
 const snapshotKey = (id: string) => `@smart_queue_notification_snapshot:${id}`;
 const queueItems = (response: any): any[] => {
   const data = response?.data ?? response;
@@ -66,7 +69,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!customerId || !token) { setNotifications([]); return; }
     AsyncStorage.getItem(listKey(customerId)).then((value) => setNotifications(value ? JSON.parse(value) : [])).catch(() => setNotifications([]));
-    if (Platform.OS === "android" && NativeNotifications) void NativeNotifications.setNotificationChannelAsync("queue-updates", { name: "Queue updates", importance: NativeNotifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: "#1E7A9B" });
+    if (Platform.OS === "android" && NativeNotifications) void Promise.all([
+      NativeNotifications.setNotificationChannelAsync("queue-ready", { name: "Queue ready", importance: NativeNotifications.AndroidImportance.MAX, sound: "default", vibrationPattern: [0, 400, 200, 400], lightColor: "#16A34A" }),
+      NativeNotifications.setNotificationChannelAsync("queue-updates", { name: "Queue updates", importance: NativeNotifications.AndroidImportance.HIGH, sound: "default", vibrationPattern: [0, 250, 150, 250], lightColor: "#1E7A9B" }),
+    ]);
   }, [customerId, token]);
 
   useEffect(() => {
@@ -91,7 +97,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const permission = await NativeNotifications.getPermissionsAsync();
     const finalPermission = permission.granted ? permission : await NativeNotifications.requestPermissionsAsync();
     if (!finalPermission.granted) return;
-    await NativeNotifications.scheduleNotificationAsync({ content: { title: item.title, body: item.message, data: { queueId: item.queueId }, sound: true }, trigger: null });
+    await NativeNotifications.scheduleNotificationAsync({ content: { title: item.title, body: item.message, data: { queueId: item.queueId }, sound: "default", priority: "high", ...(Platform.OS === "android" ? { channelId: notificationChannelForType(item.type) } : {}) }, trigger: null });
   }, []);
 
   const refresh = useCallback(async () => {
@@ -103,15 +109,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const serverItems = serverResponse?.data ?? [];
         if (Array.isArray(serverItems)) {
           serverNotificationsAvailable.current = true;
-          const mappedServer: AppNotification[] = serverItems.map((item: any) => ({
-            id: String(item._id ?? item.id),
-            title: item.title,
-            message: item.message,
-            type: item.type === "QUEUE_READY" || item.type === "QR_SCANNED" ? "ready" : item.type === "QUEUE_CANCELLED" ? "alert" : "queue",
-            createdAt: item.createdAt ?? new Date().toISOString(),
-            read: Boolean(item.isRead),
-            queueId: item.queue_id?._id ?? item.queue_id,
-          }));
+          const [storedValue, overridesValue] = await Promise.all([
+            AsyncStorage.getItem(listKey(customerId)),
+            AsyncStorage.getItem(readOverridesKey(customerId)),
+          ]);
+          const stored: AppNotification[] = storedValue ? JSON.parse(storedValue) : [];
+          const overrides: Record<string, boolean> = overridesValue ? JSON.parse(overridesValue) : {};
+          const locallyRead = new Set(stored.filter((item) => item.read).map((item) => item.id));
+          const mappedServer: AppNotification[] = serverItems.map((item: any) => {
+            const id = String(item._id ?? item.id);
+            return {
+              id,
+              title: item.title,
+              message: item.message,
+              type: item.type === "QUEUE_READY" || item.type === "QR_SCANNED" ? "ready" : item.type === "QUEUE_CANCELLED" ? "alert" : "queue",
+              createdAt: item.createdAt ?? new Date().toISOString(),
+              read: Boolean(item.isRead) || Boolean(overrides[id]) || locallyRead.has(id),
+              queueId: item.queue_id?._id ?? item.queue_id,
+            };
+          });
           await persist(mappedServer);
         }
       } catch { serverNotificationsAvailable.current = false; }
@@ -162,14 +178,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markAsRead = async (id: string) => {
     if (serverNotificationsAvailable.current) await markNotificationRead(id).catch(() => undefined);
+    const rawOverrides = await AsyncStorage.getItem(readOverridesKey(customerId));
+    const overrides: Record<string, boolean> = rawOverrides ? JSON.parse(rawOverrides) : {};
+    overrides[id] = true;
+    await AsyncStorage.setItem(readOverridesKey(customerId), JSON.stringify(overrides));
     await persist(notifications.map((item) => item.id === id ? { ...item, read: true } : item));
   };
   const markAllAsRead = async () => {
     if (serverNotificationsAvailable.current) await markAllNotificationsRead().catch(() => undefined);
+    const overrides: Record<string, boolean> = {};
+    notifications.forEach((item) => { overrides[item.id] = true; });
+    await AsyncStorage.setItem(readOverridesKey(customerId), JSON.stringify(overrides));
     await persist(notifications.map((item) => ({ ...item, read: true })));
   };
   const clearAll = async () => {
     if (serverNotificationsAvailable.current) await Promise.all(notifications.map((item) => deleteNotification(item.id).catch(() => undefined)));
+    await AsyncStorage.removeItem(readOverridesKey(customerId));
     await persist([]);
   };
   return <NotificationContext.Provider value={{ notifications, unreadCount: notifications.filter((item) => !item.read).length, refreshing, refresh, markAsRead, markAllAsRead, clearAll }}>{children}</NotificationContext.Provider>;

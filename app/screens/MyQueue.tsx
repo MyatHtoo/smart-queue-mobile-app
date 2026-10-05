@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation, useRoute, TabActions } from "@react-navi
 import QueueCard from "../../components/QueueCard";
 import type { Queue } from "../../src/constants/mockData";
 import { useUser } from "../../src/contexts/UserContext";
-import { cancelQueue, getCustomerQueues } from "../../src/services/api";
+import { cancelQueue, getCustomerQueueHistory, getCustomerQueues, getTableStatus } from "../../src/services/api";
 import { getCancelledQueueIds, saveCancelledQueueId } from "../../src/utils/CancelledQueueStore";
 import { getQueueStatus, isFinishedQueueStatus, isTurnQueueStatus } from "../../src/utils/LiveQueue";
 import { colors, radius } from "../../src/themes/design";
@@ -41,13 +41,16 @@ const mapQueue = (item: any): Queue => {
   const updatedRaw = item?.updatedAt ?? item?.updated_at;
   const cancelled = ["cancelled", "canceled"].includes(rawStatus);
 
+  const tableCapacity = Number(table?.capacity ?? item?.table_capacity ?? item?.tableCapacity);
   return {
     id: String(item?._id ?? item?.id ?? item?.queue_id ?? item?.queueId ?? ""),
     shopId: String(shop?._id ?? shop?.id ?? (typeof item?.shop_id !== "object" ? item?.shop_id : "") ?? ""),
     restaurantName: textValue(shop?.name ?? shop?.shopName ?? item?.shopName) || "Unknown shop",
     queueNumber: textValue(item?.queueNumber ?? item?.queue_number ?? item?.number ?? item?.queueNo),
     partySize: Number.isFinite(partySize) && partySize > 0 ? partySize : undefined,
-    queueType: textValue(table?.name ?? table?.title ?? item?.queueType ?? item?.queue_type),
+    queueType: textValue(table?.name ?? table?.title ?? table?.type ?? item?.queueType ?? item?.queue_type),
+    tableCapacity: Number.isFinite(tableCapacity) && tableCapacity > 0 ? tableCapacity : undefined,
+    tableTypeId: String(item?.table_type_id?._id ?? item?.table_type_id ?? item?.tableTypeId?._id ?? item?.tableTypeId ?? ""),
     position: finished || ready || checkedIn || seated ? 0 : Number(item?.position ?? item?.queuePosition ?? item?.peopleAhead ?? 0),
     totalPeople: finished || ready || checkedIn || seated ? 0 : Number(item?.totalPeople ?? item?.total_queue ?? item?.peopleAhead ?? 0),
     estimatedWait: finished ? "Completed" : seated ? "Seated" : checkedIn ? "Checked in" : ready ? "Your turn" : waitText,
@@ -62,6 +65,7 @@ const mapQueue = (item: any): Queue => {
     shopPhone: textValue(shop?.phoneNumber ?? shop?.phone),
     shopAddress: addressValue(shop),
     shopImage: textValue(shop?.shopImg ?? shop?.image ?? shop?.logo),
+    tableNo: textValue(item?.table_no ?? item?.tableNo),
   };
 };
 
@@ -86,9 +90,35 @@ export default function MyQueue() {
     if (!userData.id) { setQueues([]); setLoading(false); return; }
     refresh ? setRefreshing(true) : setLoading(true);
     try {
-      const [response, locallyCancelled] = await Promise.all([getCustomerQueues(userData.id), getCancelledQueueIds(userData.id)]);
-      const mapped = queueItems(response).map(mapQueue).filter((queue) => queue.id);
-      setQueues(mapped.map((queue) => locallyCancelled.has(queue.id) ? { ...queue, status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : queue));
+      const [response, historyResponse, locallyCancelled] = await Promise.all([
+        getCustomerQueues(userData.id),
+        getCustomerQueueHistory(userData.id),
+        getCancelledQueueIds(userData.id),
+      ]);
+      const currentQueues = queueItems(response).map(mapQueue).filter((queue) => queue.id);
+      const historyQueues = queueItems(historyResponse).map(mapQueue).filter((queue) => queue.id);
+      const historyIds = new Set(historyQueues.map((queue) => queue.id));
+      const mapped = [...currentQueues.filter((queue) => !historyIds.has(queue.id)), ...historyQueues];
+      const shopIds = [...new Set(mapped.map((queue) => queue.shopId).filter((shopId): shopId is string => Boolean(shopId)))];
+      const tableStatuses = await Promise.all(shopIds.map(async (shopId) => {
+        try {
+          const response = await getTableStatus(shopId);
+          return [shopId, queueItems(response)] as const;
+        } catch {
+          return [shopId, [] as any[]] as const;
+        }
+      }));
+      const statusByShop = new Map(tableStatuses);
+      setQueues(mapped.map((queue) => {
+        const rows = queue.shopId ? statusByShop.get(queue.shopId) ?? [] : [];
+        const matchingRows = queue.tableCapacity
+          ? rows.filter((row) => Number(row?.table_type_id?.capacity) === queue.tableCapacity || String(row?.table_type_id?._id ?? row?.table_type_id) === queue.tableTypeId)
+          : rows;
+        const totalTableCount = matchingRows.length || undefined;
+        const availableTableCount = totalTableCount == null ? undefined : matchingRows.filter((row) => row?.isActive !== false && !row?.queue_id).length;
+        const enriched = { ...queue, totalTableCount, availableTableCount };
+        return locallyCancelled.has(queue.id) ? { ...enriched, status: "expired" as const, rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : enriched;
+      }));
     } catch (error: any) { Alert.alert("Unable to load queues", error?.message || "Please try again."); }
     finally { setLoading(false); setRefreshing(false); }
   }, [userData.id]);
@@ -121,7 +151,7 @@ export default function MyQueue() {
   }, [queues, section, filter, search, newestFirst]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const filters: { key: Filter; label: string }[] = section === "active" ? [{ key: "all", label: "All" }, { key: "waiting", label: "Waiting" }, { key: "ready", label: "Ready" }, { key: "checked_in", label: "Checked in" }, { key: "seated", label: "Seated" }] : [{ key: "all", label: "All" }, { key: "completed", label: "Completed" }, { key: "cancelled", label: "Cancelled" }];
+  const filters: { key: Filter; label: string }[] = section === "active" ? [{ key: "all", label: "All" }, { key: "waiting", label: "Waiting" }, { key: "ready", label: "Ready" }, { key: "checked_in", label: "Checked in" }] : [{ key: "all", label: "All" }, { key: "completed", label: "Completed" }, { key: "cancelled", label: "Cancelled" }];
 
   const handleCancel = (queue: Queue) => Alert.alert("Cancel queue?", `Leave queue ${queue.queueNumber || ""} at ${queue.restaurantName}?`, [{ text: "Keep queue", style: "cancel" }, { text: "Cancel queue", style: "destructive", onPress: async () => {
     try { await cancelQueue(queue.id); await saveCancelledQueueId(userData.id || "", queue.id); setQueues((items) => items.map((item) => item.id === queue.id ? { ...item, status: "expired", rawStatus: "cancelled", statusLabel: "Cancelled", estimatedWait: "Cancelled" } : item)); }
