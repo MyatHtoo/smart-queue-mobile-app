@@ -12,10 +12,15 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1E7A9B"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.myathtoo.smartqueueapp"
+    },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E7A9B"
     },
     "web": {
       "favicon": "./assets/favicon.png"
