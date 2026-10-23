@@ -1,5 +1,8 @@
 // src/services/api.ts
 
+import { fetch as expoFetch } from 'expo/fetch';
+import { File } from 'expo-file-system';
+
 const BASE_URL = 'https://smart-q-backend-nestjs.onrender.com';
 const API_URL = `${BASE_URL}/api`;
 
@@ -622,56 +625,45 @@ export const changeProfileImage = async (data: ChangeProfileImagePayload) => {
     throw new Error('Profile image is required.');
   }
 
-  const uriParts = imageUri.split('/');
-  const rawFileName = uriParts[uriParts.length - 1] || `profile-${Date.now()}.jpg`;
-  const fileName = rawFileName.includes('.') ? rawFileName : `${rawFileName}.jpg`;
-  const ext = fileName.split('.').pop()?.toLowerCase();
-  const mimeType =
-    ext === 'png'
-      ? 'image/png'
-      : ext === 'webp'
-        ? 'image/webp'
-        : 'image/jpeg';
-
   const id = data.id ?? data.customerId ?? data.customer_id ?? data.userId ?? data.userID ?? data._id;
-  const url = `${API_URL}/customers/change-profileImage`;
-    const fieldCandidates = ['profileImage', 'image', 'file', 'avatar', 'photo'];
+  if (!id) {
+    throw new Error('Customer account could not be identified. Please sign in again.');
+  }
 
+  const url = `${API_URL}/customers/change-profileImage`;
   const headers: Record<string, string> = {};
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
   }
 
-    let lastError: any;
+  const imageFile = new File(imageUri);
+  if (!imageFile.exists) {
+    throw new Error('The selected image is no longer available. Please choose it again.');
+  }
 
-    for (const fieldName of fieldCandidates) {
-      const formData = new FormData();
-      formData.append(fieldName, {
-        uri: imageUri,
-        name: fileName,
-        type: mimeType,
-      } as any);
+  const formData = new FormData();
+  formData.append('image', imageFile);
+  formData.append('customer_id', String(id));
 
-      if (id) {
-        formData.append('id', id);
-        formData.append('customerId', id);
-        formData.append('customer_id', id);
-        formData.append('userId', id);
-        formData.append('userID', id);
-        formData.append('_id', id);
-      }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-      console.log(`[API] PATCH ${url} (field: ${fieldName})`);
+  console.log(`[API] PATCH ${url} (profile image)`);
 
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers,
-        body: formData,
-      });
+  try {
+    const response = await expoFetch(url, {
+      method: 'PATCH',
+      headers,
+      body: formData,
+      signal: controller.signal,
+    });
 
-      const responseData = await response.json().catch(() => ({}));
-      if (response.ok) {
-        return responseData;
+    const responseData = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      if (response.status === 401 && authToken) {
+        authToken = null;
+        unauthorizedHandler?.();
       }
 
       const message =
@@ -679,13 +671,18 @@ export const changeProfileImage = async (data: ChangeProfileImagePayload) => {
           ? responseData.message.join(', ')
           : responseData?.message || `Request failed (${response.status})`;
 
-      lastError = new Error(message);
-      if (!/unexpected field/i.test(String(message))) {
-        throw lastError;
-      }
+      throw new Error(message);
     }
 
-    throw lastError || new Error('Unable to upload profile image right now. Please try again.');
+    return responseData;
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Image upload timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 
