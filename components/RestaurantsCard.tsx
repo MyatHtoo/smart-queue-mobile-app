@@ -8,9 +8,10 @@ interface Props { restaurant?: Restaurant; restaurants?: Restaurant[] }
 
 function ShopCard({ restaurant }: { restaurant: Restaurant }) {
   const navigation = useNavigation<RootNavigationProp>();
-  const canJoin = restaurant.isWithinServiceArea === true;
+  const queueOpen = restaurant.isQueueOpen !== false;
+  const canJoin = restaurant.isWithinServiceArea === true && queueOpen;
   const locationMissing = restaurant.locationAvailable === false && restaurant.distanceMeters == null;
-  const reason = locationMissing ? 'Enable location to join' : 'Outside the 1 km service area';
+  const reason = !queueOpen ? 'This shop paused new queues' : locationMissing ? 'Enable location to join' : 'Outside the 1 km service area';
 
   return (
     <TouchableOpacity
@@ -23,7 +24,7 @@ function ShopCard({ restaurant }: { restaurant: Restaurant }) {
         {!canJoin && <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(15,23,42,0.30)' }} />}
         <View style={{ position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: canJoin ? colors.successSoft : '#F1F5F9', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6 }}>
           <Ionicons name={canJoin ? 'location' : 'lock-closed'} size={13} color={canJoin ? colors.success : colors.textMuted} />
-          <Text style={{ marginLeft: 4, color: canJoin ? '#15803D' : colors.textMuted, fontSize: 12, fontWeight: '700' }}>{canJoin ? `${restaurant.distance} away` : restaurant.distance}</Text>
+          <Text style={{ marginLeft: 4, color: canJoin ? '#15803D' : colors.textMuted, fontSize: 12, fontWeight: '700' }}>{!queueOpen ? 'Queue closed' : canJoin ? `${restaurant.distance} away` : restaurant.distance}</Text>
         </View>
       </View>
       <View style={{ padding: 16 }}>
@@ -44,7 +45,7 @@ function ShopCard({ restaurant }: { restaurant: Restaurant }) {
             <Text style={{ flex: 1, marginLeft: 6, color: canJoin ? colors.success : colors.warning, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{canJoin ? 'Available to join now' : reason}</Text>
           </View>
           <View style={{ backgroundColor: canJoin ? colors.primary : colors.disabled, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 10 }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>{canJoin ? 'Join queue' : 'Unavailable'}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>{canJoin ? 'Join queue' : queueOpen ? 'Unavailable' : 'Closed'}</Text>
           </View>
         </View>
       </View>

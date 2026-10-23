@@ -41,7 +41,7 @@ export default function HomePage() {
   const nearbyCount = shops.filter((shop) => shop.isWithinServiceArea).length;
   const visible = useMemo(() => shops.filter((shop) => {
     const matches = `${shop.name} ${shop.shopType} ${shop.cuisine}`.toLowerCase().includes(query.trim().toLowerCase());
-    return matches && (filter === 'all' || shop.isWithinServiceArea);
+    return matches && (filter === 'all' || (shop.isWithinServiceArea && (filter !== 'available' || shop.isQueueOpen !== false)));
   }), [filter, query, shops]);
 
   return (

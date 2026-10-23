@@ -91,6 +91,7 @@ export function useNearbyShops() {
                 : [],
           address,
           phoneNumber: shop?.phoneNumber ?? '',
+          isQueueOpen: shop?.isQueueOpen !== false,
         };
       }));
       mapped.sort((a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity));

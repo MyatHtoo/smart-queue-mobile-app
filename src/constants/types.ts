@@ -15,6 +15,7 @@ export interface Restaurant {
   address?: string;
   phoneNumber?: string;
   tableTypes?: any[];
+  isQueueOpen?: boolean;
 }
 
 export type ScreensStackParamList = {
