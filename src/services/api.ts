@@ -3,7 +3,7 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
 
-export const BASE_URL = 'https://smart-q-backend-nestjs.onrender.com';
+export const BASE_URL = 'https://stellarion.studio';
 const API_URL = `${BASE_URL}/api`;
 
 let authToken: string | null = null;
