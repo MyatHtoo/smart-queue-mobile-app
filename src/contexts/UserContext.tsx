@@ -24,6 +24,19 @@ type UserContextType = {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 const USER_DATA_KEY = '@user_profile';
+const userDataKey = (id: string) => `${USER_DATA_KEY}:${id}`;
+
+const userIdFromToken = (token?: string | null): string => {
+  if (!token) return '';
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return '';
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return String(decoded?.sub ?? decoded?.userId ?? decoded?.userID ?? decoded?.id ?? decoded?._id ?? '');
+  } catch {
+    return '';
+  }
+};
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [userData, setUserDataState] = useState<UserData>({
@@ -50,12 +63,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // load token from storage on mount
     (async () => {
       try {
-        const savedProfile = await AsyncStorage.getItem(USER_DATA_KEY);
+        const t = await getToken();
+        const accountId = userIdFromToken(t);
+        const accountKey = accountId ? userDataKey(accountId) : USER_DATA_KEY;
+        const savedProfile = await AsyncStorage.getItem(accountKey) ?? (
+          accountId ? await AsyncStorage.getItem(USER_DATA_KEY) : null
+        );
         if (savedProfile) {
           const parsed = JSON.parse(savedProfile);
           setUserDataState((current) => ({ ...current, ...parsed, password: '' }));
+          if (accountId) {
+            await AsyncStorage.setItem(accountKey, JSON.stringify({ ...parsed, password: '' }));
+          }
         }
-        const t = await getToken();
         if (t) {
           setTokenState(t);
           setAuthToken(t);
@@ -72,7 +92,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const setUserData = (data: UserData) => {
     const safeData = { ...data, password: '' };
     setUserDataState(safeData);
-    void AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(safeData));
+    const id = String(safeData.id || userIdFromToken(safeData.token));
+    void AsyncStorage.setItem(id ? userDataKey(id) : USER_DATA_KEY, JSON.stringify(safeData));
   };
 
   const setToken = async (t: string | null) => {
@@ -83,6 +104,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setAuthToken(t);
       } else {
         await removeToken();
+        const currentId = String(userData.id || '');
+        if (currentId) await AsyncStorage.removeItem(userDataKey(currentId));
         await AsyncStorage.removeItem(USER_DATA_KEY);
         setTokenState(null);
         setAuthToken(null);

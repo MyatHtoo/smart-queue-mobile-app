@@ -6,10 +6,14 @@ import { deleteNotification, getCustomerQueues, getNotifications, markAllNotific
 import { getQueueId, getQueueNumber, getQueueStatus } from "../utils/LiveQueue";
 import { useUser } from "./UserContext";
 
-// SDK 53+ intentionally disables expo-notifications inside Expo Go on Android.
-// Keep the complete in-app experience there and enable native alerts in builds.
+// Expo Go does not provide the native notification channel manager on Android.
+// Keep in-app notifications available there and enable native alerts in builds.
+const isExpoGo =
+  Constants.appOwnership === "expo" ||
+  Constants.executionEnvironment === "storeClient" ||
+  (__DEV__ && Constants.appOwnership !== "standalone");
 const NativeNotifications: typeof import("expo-notifications") | null =
-  Constants.executionEnvironment === "storeClient" ? null : require("expo-notifications");
+  isExpoGo ? null : require("expo-notifications");
 
 export type AppNotification = {
   id: string;
@@ -33,14 +37,23 @@ type NotificationContextValue = {
 };
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
-const enabledKey = "smart-queue:notifications-enabled";
+const enabledKey = (id: string) => `smart-queue:notifications-enabled:${id}`;
 const notificationChannelForType = (type?: string) =>
   type === "QUEUE_READY" || type === "QR_SCANNED" ? "queue-ready" : "queue-updates";
 const listKey = (id: string) => `@smart_queue_notifications:${id}`;
+const clearedKey = (id: string) => `@smart_queue_cleared_notifications:${id}`;
 const snapshotKey = (id: string) => `@smart_queue_notification_snapshot:${id}`;
 const queueItems = (response: any): any[] => {
   const data = response?.data ?? response;
   return Array.isArray(data) ? data : Array.isArray(data?.queues) ? data.queues : Array.isArray(data?.data) ? data.data : [];
+};
+const notificationItems = (response: any): any[] => {
+  const data = response?.data ?? response;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.notifications)) return data.notifications;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
 };
 const shopNameOf = (queue: any) => queue?.shop_id?.name ?? queue?.shopId?.name ?? queue?.shop?.name ?? queue?.shopName ?? "the shop";
 const positionOf = (queue: any) => Number(queue?.position ?? queue?.queuePosition ?? queue?.peopleAhead ?? 0);
@@ -68,22 +81,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!customerId || !token) { setNotifications([]); return; }
     AsyncStorage.getItem(listKey(customerId)).then((value) => setNotifications(value ? JSON.parse(value) : [])).catch(() => setNotifications([]));
-    if (Platform.OS === "android" && NativeNotifications) void Promise.all([
-      NativeNotifications.setNotificationChannelAsync("queue-ready", {
-        name: "Queue ready",
-        importance: NativeNotifications.AndroidImportance.MAX,
-        sound: "default",
-        vibrationPattern: [0, 400, 200, 400],
-        lightColor: "#16A34A",
-      }),
-      NativeNotifications.setNotificationChannelAsync("queue-updates", {
-        name: "Queue updates",
-        importance: NativeNotifications.AndroidImportance.HIGH,
-        sound: "default",
-        vibrationPattern: [0, 250, 150, 250],
-        lightColor: "#1E7A9B",
-      }),
-    ]);
+    if (Platform.OS === "android" && NativeNotifications) {
+      void Promise.all([
+        NativeNotifications.setNotificationChannelAsync("queue-ready", {
+          name: "Queue ready",
+          importance: NativeNotifications.AndroidImportance.MAX,
+          sound: "default",
+          vibrationPattern: [0, 400, 200, 400],
+          lightColor: "#16A34A",
+        }),
+        NativeNotifications.setNotificationChannelAsync("queue-updates", {
+          name: "Queue updates",
+          importance: NativeNotifications.AndroidImportance.HIGH,
+          sound: "default",
+          vibrationPattern: [0, 250, 150, 250],
+          lightColor: "#1E7A9B",
+        }),
+      ]).catch((error) => {
+        console.warn("Notification channel setup failed", error);
+      });
+    }
   }, [customerId, token]);
 
   useEffect(() => {
@@ -125,7 +142,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const notify = useCallback(async (item: AppNotification) => {
     if (!NativeNotifications) return;
-    const enabled = await AsyncStorage.getItem(enabledKey);
+    const enabled = await AsyncStorage.getItem(enabledKey(customerId));
     if (enabled === "false") return;
     const permission = await NativeNotifications.getPermissionsAsync();
     const finalPermission = permission.granted ? permission : await NativeNotifications.requestPermissionsAsync();
@@ -141,7 +158,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       },
       trigger: null,
     });
-  }, []);
+  }, [customerId]);
 
   const refresh = useCallback(async () => {
     if (!customerId || !token || running.current) return;
@@ -149,21 +166,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       try {
         const serverResponse: any = await getNotifications();
-        const serverItems = serverResponse?.data ?? [];
-        if (Array.isArray(serverItems)) {
+        const serverItems = notificationItems(serverResponse);
+        if (serverItems.length || serverResponse?.data !== undefined) {
           serverNotificationsAvailable.current = true;
-          const mappedServer: AppNotification[] = serverItems.map((item: any) => ({
-            id: String(item._id ?? item.id),
-            title: item.title,
-            message: item.message,
-            type: item.type === "QUEUE_READY" || item.type === "QR_SCANNED" ? "ready" : item.type === "QUEUE_CANCELLED" ? "alert" : "queue",
-            createdAt: item.createdAt ?? new Date().toISOString(),
-            read: Boolean(item.isRead),
-            queueId: item.queue_id?._id ?? item.queue_id,
-          }));
+          const stored = await AsyncStorage.getItem(listKey(customerId));
+          const storedItems: AppNotification[] = stored ? JSON.parse(stored) : [];
+          const storedById = new Map(storedItems.map((item) => [item.id, item]));
+          const cleared = new Set(JSON.parse(await AsyncStorage.getItem(clearedKey(customerId)) || "[]"));
+          const mappedServer: AppNotification[] = serverItems
+            .map((item: any): AppNotification => ({
+              id: String(item._id ?? item.id),
+              title: item.title,
+              message: item.message,
+              type: item.type === "QUEUE_READY" || item.type === "QR_SCANNED" ? "ready" : item.type === "QUEUE_CANCELLED" ? "alert" : "queue",
+              createdAt: item.createdAt ?? new Date().toISOString(),
+              // Keep an optimistic local read until the server confirms it.
+              read: Boolean(item.isRead ?? item.read ?? item.readAt) || Boolean(storedById.get(String(item._id ?? item.id))?.read),
+              queueId: item.queue_id?._id ?? item.queue_id,
+            }))
+            .filter((item) => !cleared.has(item.id));
           await persist(mappedServer);
         }
-      } catch { serverNotificationsAvailable.current = false; }
+      } catch (error) {
+        serverNotificationsAvailable.current = false;
+        console.warn("Notification fetch failed", error);
+      }
       const response = await getCustomerQueues(customerId);
       const queues = queueItems(response);
       const current: QueueSnapshot = {};
@@ -210,15 +237,34 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [customerId, refresh, token]);
 
   const markAsRead = async (id: string) => {
-    if (serverNotificationsAvailable.current) await markNotificationRead(id).catch(() => undefined);
+    if (serverNotificationsAvailable.current) {
+      try {
+        await markNotificationRead(id);
+      } catch (error) {
+        console.warn("Notification read update failed", error);
+      }
+    }
     await persist(notifications.map((item) => item.id === id ? { ...item, read: true } : item));
   };
   const markAllAsRead = async () => {
-    if (serverNotificationsAvailable.current) await markAllNotificationsRead().catch(() => undefined);
+    if (serverNotificationsAvailable.current) {
+      try {
+        await markAllNotificationsRead();
+      } catch (error) {
+        console.warn("Mark-all notifications update failed", error);
+      }
+    }
     await persist(notifications.map((item) => ({ ...item, read: true })));
   };
   const clearAll = async () => {
-    if (serverNotificationsAvailable.current) await Promise.all(notifications.map((item) => deleteNotification(item.id).catch(() => undefined)));
+    const ids = notifications.map((item) => item.id);
+    if (serverNotificationsAvailable.current) {
+      await Promise.all(ids.map((id) => deleteNotification(id).catch((error) => {
+        console.warn("Notification delete failed", error);
+      })));
+    }
+    const storedCleared = JSON.parse(await AsyncStorage.getItem(clearedKey(customerId)) || "[]");
+    await AsyncStorage.setItem(clearedKey(customerId), JSON.stringify([...new Set([...storedCleared, ...ids])].slice(-500)));
     await persist([]);
   };
   return <NotificationContext.Provider value={{ notifications, unreadCount: notifications.filter((item) => !item.read).length, refreshing, refresh, markAsRead, markAllAsRead, clearAll }}>{children}</NotificationContext.Provider>;

@@ -202,15 +202,21 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
   };
 
   const extractProfileImageUrl = (resp: any): string => {
-    return (
-      resp?.data?.customer?.profileImage ||
-      resp?.data?.user?.profileImage ||
-      resp?.data?.profileImage ||
-      resp?.customer?.profileImage ||
-      resp?.user?.profileImage ||
-      resp?.profileImage ||
-      ''
-    );
+    const imageKeys = new Set(['profileImage', 'profileImg', 'profile_image', 'imageUrl', 'image_url', 'avatar', 'avatarUrl']);
+    const findImage = (value: any, depth = 0): string => {
+      if (!value || depth > 4 || typeof value !== 'object') return '';
+      for (const [key, nestedValue] of Object.entries(value)) {
+        if (imageKeys.has(key) && typeof nestedValue === 'string' && nestedValue.trim()) {
+          return nestedValue.trim();
+        }
+      }
+      for (const nestedValue of Object.values(value)) {
+        const found = findImage(nestedValue, depth + 1);
+        if (found) return found;
+      }
+      return '';
+    };
+    return findImage(resp);
   };
 
   const handlePickProfileImage = async () => {
@@ -436,7 +442,11 @@ const EditProfileScreen = ({ navigation, route }: Props) => {
           userID: resolvedUserId,
           _id: resolvedUserId,
         });
-        nextProfileImage = extractProfileImageUrl(profileImageResp) || profileImageUri;
+        const uploadedProfileImage = extractProfileImageUrl(profileImageResp);
+        // Some backend versions return only a success message. Keep the local
+        // URI so the new photo is visible immediately while the account data
+        // is refreshed from the server on the next login.
+        nextProfileImage = uploadedProfileImage || profileImageUri;
       }
 
       if (phoneChanged && !isPhoneVerified) {

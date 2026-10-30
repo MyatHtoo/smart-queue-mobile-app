@@ -41,7 +41,7 @@ export default function LoginPage() {
       const id = idFrom(user);
       const email = user?.email ?? (isEmail ? normalized : "");
       const phoneNumber = user?.phoneNumber ?? (!isEmail ? normalized : "");
-      const apiImage = user?.profileImage ?? user?.profile_image ?? user?.avatar ?? user?.avatarUrl ?? "";
+      const apiImage = user?.profileImage ?? user?.profileImg ?? user?.profile_image ?? user?.avatar ?? user?.avatarUrl ?? "";
       const profileImage = apiImage || await getProfileImageForAccount({ id, email, phoneNumber });
       setAuthToken(token);
       setUserData({ id, name: user?.username || user?.name || email || phoneNumber, email, phoneNumber, profileImage, password: "", token });

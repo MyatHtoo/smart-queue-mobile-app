@@ -195,6 +195,7 @@ export default function OTPScreen({ navigation, route }: Props) {
         phoneNumber: customer?.phoneNumber || (isPhone ? (phoneNumber || value) : (phoneNumber || '')),
         profileImage:
           customer?.profileImage ||
+          customer?.profileImg ||
           customer?.profile_image ||
           customer?.avatar ||
           customer?.avatarUrl ||

@@ -3,12 +3,24 @@ import { Alert, ScrollView, Share, Switch, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MenuCard, MenuRow, ScreenHeader, SectionLabel } from "../../components/common/ScreenUI";
 import { colors, radius } from "../../src/themes/design";
+import { useUser } from "../../src/contexts/UserContext";
 
-const NOTIFICATION_KEY = "smart-queue:notifications-enabled";
 export default function Settings({ navigation }: any) {
+  const { userData } = useUser();
+  const customerId = String(userData.id ?? "");
+  const notificationKey = customerId ? `smart-queue:notifications-enabled:${customerId}` : "";
   const [notifications, setNotifications] = useState(true);
-  useEffect(() => { AsyncStorage.getItem(NOTIFICATION_KEY).then((value) => value != null && setNotifications(value === "true")); }, []);
-  const toggleNotifications = async (value: boolean) => { setNotifications(value); await AsyncStorage.setItem(NOTIFICATION_KEY, String(value)); };
+  useEffect(() => {
+    if (!notificationKey) {
+      setNotifications(true);
+      return;
+    }
+    AsyncStorage.getItem(notificationKey).then((value) => value != null && setNotifications(value === "true"));
+  }, [notificationKey]);
+  const toggleNotifications = async (value: boolean) => {
+    setNotifications(value);
+    if (notificationKey) await AsyncStorage.setItem(notificationKey, String(value));
+  };
   const info = (title: string, message: string) => Alert.alert(title, message, [{ text: "Close" }]);
   return <View style={{ flex: 1, backgroundColor: colors.background }}><ScreenHeader title="Settings" subtitle="Control your Smart Queue experience" onBack={() => navigation.goBack()} />
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 36 }}>
