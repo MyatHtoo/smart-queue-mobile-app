@@ -2,7 +2,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
+import { io, Socket } from "socket.io-client";
 import { deleteNotification, getCustomerQueues, getNotifications, markAllNotificationsRead, markNotificationRead, savePushToken } from "../services/api";
+import { BASE_URL } from "../services/api";
 import { getQueueId, getQueueNumber, getQueueStatus } from "../utils/LiveQueue";
 import { useUser } from "./UserContext";
 
@@ -70,6 +72,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [refreshing, setRefreshing] = useState(false);
   const running = useRef(false);
   const serverNotificationsAvailable = useRef(false);
+  const socketRef = useRef<Socket | null>(null);
 
   const persist = useCallback(async (items: AppNotification[]) => {
     if (!customerId) return;
@@ -102,6 +105,54 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       });
     }
   }, [customerId, token]);
+
+  useEffect(() => {
+    if (!customerId || !token) return;
+    const socket = io(BASE_URL, {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+    });
+    socketRef.current = socket;
+    socket.on("connect", () => {
+      socket.emit("joinCustomerRoom", customerId);
+    });
+    socket.on("queueAlert", (payload: {
+      id?: string;
+      type?: string;
+      title?: string;
+      message?: string;
+      queue_id?: string;
+      queueId?: string;
+      createdAt?: string;
+    }) => {
+      const item: AppNotification = {
+        id: String(payload.id ?? `${Date.now()}`),
+        title: payload.title ?? "Queue update",
+        message: payload.message ?? "",
+        type: payload.type === "QUEUE_READY" || payload.type === "QR_SCANNED"
+          ? "ready"
+          : payload.type === "QUEUE_CANCELLED" ? "alert" : "queue",
+        createdAt: payload.createdAt ?? new Date().toISOString(),
+        read: false,
+        queueId: payload.queueId ?? payload.queue_id,
+      };
+      void AsyncStorage.getItem(listKey(customerId)).then((value) => {
+        const existing: AppNotification[] = value ? JSON.parse(value) : [];
+        if (!existing.some((current) => current.id === item.id)) {
+          void persist([item, ...existing]);
+        }
+      });
+    });
+    socket.on("connect_error", (error) => {
+      console.warn("Real-time notification connection failed", error.message);
+    });
+    return () => {
+      socket.removeAllListeners();
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [customerId, persist, token]);
 
   useEffect(() => {
     if (!customerId || !token || !NativeNotifications) return;

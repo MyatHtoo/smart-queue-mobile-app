@@ -31,7 +31,8 @@
     "react-native-paper": "^5.14.5",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-webview": "13.16.1"
+    "react-native-webview": "13.16.1",
+    "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
     "@types/react": "~19.2.10",
