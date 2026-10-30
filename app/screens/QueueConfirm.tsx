@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useEffect, useState } from "react";
 import { getShopQueues } from "../../src/services/api";
-import { getEstimatedWait, getQueueId, getQueueNumber, getSortedActiveQueues, isTurnQueueStatus } from "../../src/utils/LiveQueue";
+import { getEstimatedWait, getEstimatedWaitLabel, getQueueId, getQueueNumber, getSortedActiveQueues, isTurnQueueStatus } from "../../src/utils/LiveQueue";
 
 export default function QueueConfirm() {
   const navigation = useNavigation();
@@ -23,6 +23,7 @@ export default function QueueConfirm() {
   const [queueStats, setQueueStats] = useState({
     peopleInFront: 0,
     estimatedWait: getEstimatedWait(createdQueue),
+    estimatedWaitLabel: getEstimatedWaitLabel(createdQueue),
   });
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function QueueConfirm() {
           setQueueStats({
             peopleInFront: isTurn ? 0 : Math.max(0, queueIndex),
             estimatedWait: isTurn ? 0 : getEstimatedWait(queue),
+            estimatedWaitLabel: isTurn ? "0 min" : getEstimatedWaitLabel(queue),
           });
         }
       } catch (error) {
@@ -238,7 +240,7 @@ export default function QueueConfirm() {
                 <Text
                   style={{ fontSize: 14, fontWeight: "600", color: "#1E7A9B" }}
                 >
-                  ~{queueStats.estimatedWait} min
+                  ~{queueStats.estimatedWaitLabel}
                 </Text>
               </View>
 

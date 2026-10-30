@@ -7,7 +7,7 @@ import type { Queue } from "../../src/constants/mockData";
 import { useUser } from "../../src/contexts/UserContext";
 import { cancelQueue, getCustomerQueueHistory, getCustomerQueues, getTableTypes } from "../../src/services/api";
 import { getCancelledQueueIds, saveCancelledQueueId } from "../../src/utils/CancelledQueueStore";
-import { getQueueStatus, isFinishedQueueStatus, isTurnQueueStatus } from "../../src/utils/LiveQueue";
+import { getEstimatedWaitLabel, getQueueStatus, isFinishedQueueStatus, isTurnQueueStatus } from "../../src/utils/LiveQueue";
 import { colors, radius } from "../../src/themes/design";
 
 const PAGE_SIZE = 5;
@@ -37,7 +37,9 @@ const mapQueue = (item: any): Queue => {
   const ready = ["ready", "ready to seat", "called", "notified"].includes(rawStatus);
   const partySize = Number(item?.partySize ?? item?.guestCount ?? item?.numberOfGuests ?? item?.party_size ?? table?.capacity);
   const wait = item?.estimated_wait_time ?? item?.estimatedWaitTime ?? item?.estimatedWait ?? item?.estimated_wait ?? item?.waitingTime;
-  const waitText = wait == null ? "Calculating" : typeof wait === "number" || /^\d+$/.test(String(wait)) ? `${wait} min` : String(wait);
+  const waitText = item?.estimated_wait_min != null || item?.estimatedWaitMin != null
+    ? getEstimatedWaitLabel(item)
+    : wait == null ? "Calculating" : typeof wait === "number" || /^\d+$/.test(String(wait)) ? `${wait} min` : String(wait);
   const joinedRaw = item?.createdAt ?? item?.joinedAt ?? item?.created_at;
   const updatedRaw = item?.updatedAt ?? item?.updated_at;
   const cancelled = ["cancelled", "canceled"].includes(rawStatus);

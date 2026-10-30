@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { getQueueById, getShopQueues } from "../../src/services/api";
 import {
   getEstimatedWait,
+  getEstimatedWaitLabel,
   getQueueId,
   getQueueNumber,
   getQueueStatus,
@@ -20,6 +21,7 @@ interface QueueInfo {
   yourNumber: number;
   peopleInFront: number;
   estimatedWaitTime: number; // in minutes
+  estimatedWaitLabel: string;
   averageServiceTime: number; // in minutes per person
   queueStatus: "active" | "paused" | "closed";
   backendStatus: string;
@@ -44,6 +46,7 @@ export default function ViewLive() {
     yourNumber: yourNumber,
     peopleInFront: 0,
     estimatedWaitTime: 0,
+    estimatedWaitLabel: "Calculating",
     averageServiceTime: 60,
     queueStatus: "active",
     backendStatus: "waiting",
@@ -83,6 +86,7 @@ export default function ViewLive() {
         yourNumber: number,
         peopleInFront,
         estimatedWaitTime: Number.isFinite(effectiveWaitTime) ? effectiveWaitTime : 0,
+        estimatedWaitLabel: isReady || isClosed ? "0 min" : getEstimatedWaitLabel(queue),
         averageServiceTime,
         queueStatus: isClosed ? "closed" : "active",
         backendStatus,
@@ -309,7 +313,7 @@ export default function ViewLive() {
                     Estimated Wait Time
                   </Text>
                   <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>
-                    {liveQueue.estimatedWaitTime} <Text style={{ fontSize: 20 }}>min</Text>
+                    {liveQueue.estimatedWaitLabel}
                   </Text>
                   <Text style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
                     {liveQueue.peopleInFront > 0
