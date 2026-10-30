@@ -208,12 +208,11 @@ export const sendEmailOtp = async (data: { email: string }) => {
     timeoutMs: 60000,
   });
 
-  const otp = response?.data?.otp ?? response?.otp;
-  if (otp) {
-    console.log('[API] Email OTP (dev):', otp);
-  } else {
-    console.log('[API] Email OTP not returned by backend.');
+  const result = response?.data;
+  if (result?.success === false) {
+    throw new Error(result.message || 'Unable to send email OTP.');
   }
+  console.log('[API] Email OTP request accepted; check the email inbox.');
 
   return response;
 };
