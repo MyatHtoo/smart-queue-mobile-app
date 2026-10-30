@@ -22,16 +22,17 @@ type RequestOptions = {
   body?: any;
   headers?: Record<string, string>;
   skipAuth?: boolean;
+  timeoutMs?: number;
 };
 
 async function request<T>(
   endpoint: string,
   options: RequestOptions
 ): Promise<T> {
-  const { method, body, headers, skipAuth } = options;
+  const { method, body, headers, skipAuth, timeoutMs = 15000 } = options;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000); 
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -204,6 +205,7 @@ export const sendEmailOtp = async (data: { email: string }) => {
     method: 'POST',
     body: { email: normalizedEmail },
     skipAuth: true,
+    timeoutMs: 60000,
   });
 
   const otp = response?.data?.otp ?? response?.otp;
