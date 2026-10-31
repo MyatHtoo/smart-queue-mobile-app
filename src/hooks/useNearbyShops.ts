@@ -9,8 +9,7 @@ const getQueueCount = (response: any) => {
   const data = response?.data ?? response;
   const queues = Array.isArray(data) ? data : data?.queues ?? data?.data ?? [];
   if (!Array.isArray(queues)) return Number(data?.activeQueueCount ?? data?.count ?? 0) || 0;
-  const finished = new Set(['completed', 'complete', 'cancelled', 'canceled', 'served', 'done', 'expired']);
-  return queues.filter((queue: any) => !finished.has(String(queue?.status ?? '').toLowerCase())).length;
+  return queues.filter((queue: any) => String(queue?.status ?? '').trim().toLowerCase() === 'waiting').length;
 };
 
 export const distanceInMeters = (aLat: number, aLng: number, bLat: number, bLng: number) => {

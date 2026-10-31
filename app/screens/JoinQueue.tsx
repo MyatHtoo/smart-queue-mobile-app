@@ -1,10 +1,10 @@
 import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import TableTypeSelector from "../../components/TableTypeSelector";
 import { useUser } from "../../src/contexts/UserContext";
-import { createQueue, getCustomerQueues } from "../../src/services/api";
+import { createQueue, getCustomerQueues, getTableStatus } from "../../src/services/api";
 import { tableTypesFromShop, type TableTypeOption } from "../../src/utils/TableTypes";
 import { cardShadow, colors, radius } from "../../src/themes/design";
 
@@ -21,13 +21,47 @@ export default function JoinQueue() {
   const navigation = useNavigation();
   const restaurant = (useRoute().params as any)?.restaurant;
   const { userData } = useUser();
+  const [tableStatus, setTableStatus] = useState<any[]>([]);
   const scrollRef = useRef<ScrollView>(null);
-  const tableTypes = useMemo(() => tableTypesFromShop(restaurant), [restaurant]);
+  useEffect(() => {
+    const shopId = restaurant?.id ?? restaurant?._id ?? restaurant?.shop_id;
+    if (!shopId) return;
+    getTableStatus(String(shopId))
+      .then((response) => {
+        const data = response?.data ?? response;
+        setTableStatus(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setTableStatus([]));
+  }, [restaurant]);
+  const tableTypes = useMemo(() => {
+    const rawTypes = Array.isArray(restaurant?.tableTypes) ? restaurant.tableTypes : [];
+    const typesWithAvailability = rawTypes.map((type: any) => ({
+      ...type,
+      availableCount: Math.max(
+        0,
+        Number(type?.capacity ?? 0) -
+          tableStatus.filter(
+            (status) =>
+              String(status?.table_type_id) === String(type?._id ?? type?.id) &&
+              status?.isActive,
+          ).length,
+      ),
+    }));
+    return tableTypesFromShop({ ...restaurant, tableTypes: typesWithAvailability });
+  }, [restaurant, tableStatus]);
   const firstAvailable = tableTypes.find((item) => item.available);
   const [selected, setSelected] = useState<TableTypeOption | undefined>(firstAvailable);
   const [partySize, setPartySize] = useState(firstAvailable?.minGuests ?? 1);
   const [notes, setNotes] = useState("");
   const [joining, setJoining] = useState(false);
+
+  useEffect(() => {
+    if (!selected || !tableTypes.some((item) => item.id === selected.id && item.available)) {
+      const next = tableTypes.find((item) => item.available);
+      setSelected(next);
+      setPartySize(next?.minGuests ?? 1);
+    }
+  }, [selected, tableTypes]);
 
   const selectTable = (option: TableTypeOption) => { setSelected(option); setPartySize(Math.max(option.minGuests, Math.min(partySize, option.maxGuests))); };
   const changeGuests = (change: number) => selected && setPartySize((current) => Math.max(selected.minGuests, Math.min(selected.maxGuests, current + change)));

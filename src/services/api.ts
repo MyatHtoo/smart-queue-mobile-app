@@ -719,6 +719,12 @@ export const getShopQueues = (shopId: string) => {
   });
 };
 
+export const getTableStatus = (shopId: string) => {
+  return request<any>(`/queues/get-table-status/${encodeURIComponent(shopId)}?t=${Date.now()}`, {
+    method: 'GET',
+  });
+};
+
 export const getCustomerQueues = (customerId: string) => {
   return request<any>(`/queues/customer/${encodeURIComponent(customerId)}?t=${Date.now()}`, {
     method: 'GET',
