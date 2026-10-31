@@ -33,7 +33,7 @@ export const normalizeTableTypes = (items: any[]): TableTypeOption[] => (Array.i
     const availableCount = countFrom(item?.availableCount, item?.availableTables, item?.remaining, item?.quantityAvailable);
     const totalTables = countFrom(item?.capacity, item?.tableCount, item?.quantity);
     const status = String(item?.status ?? "").toLowerCase();
-    const available = item?.isActive !== false && item?.active !== false && item?.isAvailable !== false && status !== "inactive" && status !== "unavailable" && availableCount !== 0;
+    const available = item?.isActive !== false && item?.active !== false && item?.isAvailable !== false && status !== "inactive" && status !== "unavailable";
     return {
       id: String(item?._id ?? item?.id ?? item?.table_type_id ?? item?.tableTypeId ?? ""),
       name,
