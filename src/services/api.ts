@@ -703,6 +703,7 @@ export type CreateQueuePayload = {
   shop_id: string;
   customer_id: string;
   table_type_id: string;
+  partySize: number;
   userRequirements: string;
 };
 

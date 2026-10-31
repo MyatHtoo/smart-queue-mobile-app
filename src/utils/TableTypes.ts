@@ -29,7 +29,13 @@ export const normalizeTableTypes = (items: any[]): TableTypeOption[] => (Array.i
     // encoded in `type` (for example "4-seat"). Do not use it as guest count.
     const seatsFromName = numberFrom(range?.[2], name.match(/\d+/)?.[0]);
     const maxGuests = numberFrom(item?.maxGuests, item?.seats, item?.seatCount, item?.maxCapacity, item?.maximumCapacity, seatsFromName) ?? 1;
-    const minGuests = Math.min(numberFrom(item?.minCapacity, item?.minimumCapacity, item?.minGuests, range?.[1]) ?? 1, maxGuests);
+    const minGuests = Math.max(
+      1,
+      Math.min(
+        numberFrom(item?.minCapacity, item?.minimumCapacity, item?.minGuests) ?? maxGuests - 2,
+        maxGuests,
+      ),
+    );
     const availableCount = countFrom(item?.availableCount, item?.availableTables, item?.remaining, item?.quantityAvailable);
     const totalTables = countFrom(item?.capacity, item?.tableCount, item?.quantity);
     const status = String(item?.status ?? "").toLowerCase();
@@ -49,7 +55,7 @@ export const normalizeTableTypes = (items: any[]): TableTypeOption[] => (Array.i
   .sort((left, right) => left.maxGuests - right.maxGuests)
   .map((item, index, sorted) => ({
     ...item,
-    minGuests: index === 0 ? 1 : Math.min(sorted[index - 1].maxGuests + 1, item.maxGuests),
+    minGuests: item.minGuests,
   }));
 
 export const tableTypesFromShop = (shop: any) => normalizeTableTypes(

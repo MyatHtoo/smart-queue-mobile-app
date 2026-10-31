@@ -79,7 +79,7 @@ export default function JoinQueue() {
       setJoining(true);
       const existing = queueItems(await getCustomerQueues(String(userData.id))).length > 0;
       if (existing) return Alert.alert("Active queue already exists", "Cancel or complete your current queue before joining another one.");
-      const response = await createQueue({ shop_id: String(shopId), customer_id: String(userData.id), table_type_id: selected.id, userRequirements: notes.trim() });
+      const response = await createQueue({ shop_id: String(shopId), customer_id: String(userData.id), table_type_id: selected.id, partySize, userRequirements: notes.trim() });
       (navigation.navigate as any)("QueueConfirm", { queueData: { restaurant, phone: userData.phoneNumber, partySize, queueType: selected.name, tableTypeId: selected.id, notes: notes.trim(), queue: response?.data ?? response } });
     } catch (error: any) { Alert.alert("Unable to join queue", error?.message || "Please try again."); }
     finally { setJoining(false); }
