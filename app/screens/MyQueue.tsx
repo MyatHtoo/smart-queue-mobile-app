@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation, useRoute, TabActions } from "@react-navi
 import QueueCard from "../../components/QueueCard";
 import type { Queue } from "../../src/constants/mockData";
 import { useUser } from "../../src/contexts/UserContext";
-import { cancelQueue, getCustomerQueueHistory, getCustomerQueues, getTableTypes } from "../../src/services/api";
+import { cancelQueue, getCustomerQueueHistory, getCustomerQueues, getQueueById, getTableTypes } from "../../src/services/api";
 import { getCancelledQueueIds, saveCancelledQueueId } from "../../src/utils/CancelledQueueStore";
 import { getEstimatedWaitLabel, getQueueStatus, isFinishedQueueStatus, isTurnQueueStatus } from "../../src/utils/LiveQueue";
 import { colors, radius } from "../../src/themes/design";
@@ -104,7 +104,13 @@ export default function MyQueue() {
       // The active and history endpoints are the source of truth for their own
       // sections. Queue numbers can repeat (an immediately ready queue is #0),
       // so they must never be used to deduplicate records across sections.
-      const current = queueItems(response).map(mapQueue).filter((queue) => queue.id);
+      const currentItems = queueItems(response).filter((item) => item?._id ?? item?.id ?? item?.queue_id ?? item?.queueId);
+      const current = (await Promise.all(currentItems.map(async (item) => {
+        const queueId = String(item?._id ?? item?.id ?? item?.queue_id ?? item?.queueId);
+        const latest = await getQueueById(queueId);
+        const data = latest?.data?.data ?? latest?.data ?? latest;
+        return data && typeof data === "object" ? data : item;
+      }))).map(mapQueue).filter((queue) => queue.id);
       const tableTypes = queueItems(tableTypeResponse);
       const tableTypeById = new Map(tableTypes.map((tableType) => [String(tableType?._id ?? tableType?.id), tableType]));
       const mapped: DisplayQueue[] = [
