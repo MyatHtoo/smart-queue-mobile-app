@@ -68,9 +68,9 @@ export default function ViewLive() {
       const allQueues = getQueueItems(response);
       const queues = getSortedActiveQueues(response);
       const history = shopId ? getQueueItems(await getShopQueueHistory(String(shopId))) : [];
-      const queueResponse = shopId ? await getQueueById(String(queueId)) : response;
+      const queueResponse = await getQueueById(String(queueId));
       const directQueue = getQueueItems(queueResponse)[0] ?? queueResponse?.data ?? queueResponse;
-      const queue = queues.find((item) => getQueueId(item) === String(queueId)) ?? directQueue;
+      const queue = directQueue;
       if (!queue || !getQueueId(queue)) {
         throw new Error("This queue is no longer available.");
       }

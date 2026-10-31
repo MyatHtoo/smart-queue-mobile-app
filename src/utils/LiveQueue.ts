@@ -26,6 +26,12 @@ export const getEstimatedWaitLabel = (queue: any) => {
   if (Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min) {
     return `${min}-${max} min`;
   }
+  const rawWait =
+    queue?.estimated_wait_time ?? queue?.estimatedWaitTime ?? queue?.estimated_wait ??
+    queue?.estimatedWait ?? queue?.waitingTime;
+  if (typeof rawWait === "string" && !Number.isFinite(Number(rawWait))) {
+    return rawWait;
+  }
   const wait = getEstimatedWait(queue);
   return `${wait} min`;
 };

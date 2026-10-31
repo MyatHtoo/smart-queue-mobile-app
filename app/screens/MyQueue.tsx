@@ -37,9 +37,9 @@ const mapQueue = (item: any): Queue => {
   const ready = ["ready", "ready to seat", "called", "notified"].includes(rawStatus);
   const partySize = Number(item?.partySize ?? item?.guestCount ?? item?.numberOfGuests ?? item?.party_size ?? table?.capacity);
   const wait = item?.estimated_wait_time ?? item?.estimatedWaitTime ?? item?.estimatedWait ?? item?.estimated_wait ?? item?.waitingTime;
-  const waitText = item?.estimated_wait_min != null || item?.estimatedWaitMin != null
-    ? getEstimatedWaitLabel(item)
-    : wait == null ? "Calculating" : typeof wait === "number" || /^\d+$/.test(String(wait)) ? `${wait} min` : String(wait);
+  const waitText = wait == null && item?.estimated_wait_min == null && item?.estimatedWaitMin == null
+    ? "Calculating"
+    : getEstimatedWaitLabel(item);
   const joinedRaw = item?.createdAt ?? item?.joinedAt ?? item?.created_at;
   const updatedRaw = item?.updatedAt ?? item?.updated_at;
   const cancelled = ["cancelled", "canceled"].includes(rawStatus);
