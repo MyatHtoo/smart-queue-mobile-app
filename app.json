@@ -16,7 +16,8 @@
         "backgroundColor": "#1E7A9B"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.encrypted.smartq"
+      "package": "com.encrypted.smartq",
+      "enableProguardInReleaseBuilds": false
     },
     "splash": {
       "image": "./assets/splash-icon.png",
