@@ -16,8 +16,7 @@
         "backgroundColor": "#1E7A9B"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.encrypted.smartq",
-      "enableProguardInReleaseBuilds": false
+      "package": "com.encrypted.smartq"
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -30,7 +29,15 @@
     "plugins": [
       "expo-status-bar",
       "expo-font",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false
+          }
+        }
+      ]
     ],
     "owner": "myathtoo"
   }
