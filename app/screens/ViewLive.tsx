@@ -3,7 +3,7 @@ import { IconButton, Button } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { getQueueById, getShopQueues } from "../../src/services/api";
+import { getQueueById, getShopQueues, getShopQueueHistory } from "../../src/services/api";
 import {
   getEstimatedWait,
   getEstimatedWaitLabel,
@@ -18,6 +18,7 @@ import {
 
 interface QueueInfo {
   currentServing: number;
+  waitingCount: number;
   yourNumber: number;
   peopleInFront: number;
   estimatedWaitTime: number; // in minutes
@@ -43,6 +44,7 @@ export default function ViewLive() {
   
   const [liveQueue, setLiveQueue] = useState<QueueInfo>({
     currentServing: 0,
+    waitingCount: 0,
     yourNumber: yourNumber,
     peopleInFront: 0,
     estimatedWaitTime: 0,
@@ -63,7 +65,9 @@ export default function ViewLive() {
       const response = shopId
         ? await getShopQueues(String(shopId))
         : await getQueueById(String(queueId));
+      const allQueues = getQueueItems(response);
       const queues = getSortedActiveQueues(response);
+      const history = shopId ? getQueueItems(await getShopQueueHistory(String(shopId))) : [];
       const queueResponse = shopId ? await getQueueById(String(queueId)) : response;
       const directQueue = getQueueItems(queueResponse)[0] ?? queueResponse?.data ?? queueResponse;
       const queue = queues.find((item) => getQueueId(item) === String(queueId)) ?? directQueue;
@@ -79,10 +83,15 @@ export default function ViewLive() {
       const peopleInFront = isReady || isClosed ? 0 : Math.max(0, queueIndex);
       const effectiveWaitTime = isReady || isClosed ? 0 : waitTime;
       const averageServiceTime = peopleInFront > 0 ? Math.round(effectiveWaitTime / peopleInFront) : 0;
-      const firstQueueNumber = getQueueNumber(queues[0]);
+      const seatedQueues = [...allQueues, ...history]
+        .filter((item) => getQueueStatus(item) === "seated")
+        .sort((left, right) => new Date(right.updatedAt ?? right.createdAt ?? 0).getTime() - new Date(left.updatedAt ?? left.createdAt ?? 0).getTime());
+      const latestSeatedNumber = getQueueNumber(seatedQueues[0]);
+      const waitingCount = allQueues.filter((item) => getQueueStatus(item) === "waiting").length;
 
       setLiveQueue({
-        currentServing: firstQueueNumber || Math.max(0, number - peopleInFront),
+        currentServing: latestSeatedNumber,
+        waitingCount,
         yourNumber: number,
         peopleInFront,
         estimatedWaitTime: Number.isFinite(effectiveWaitTime) ? effectiveWaitTime : 0,
@@ -293,6 +302,11 @@ export default function ViewLive() {
                   <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>
                     {liveQueue.peopleInFront}
                   </Text>
+                </View>
+
+                <View style={{ backgroundColor: "white", borderRadius: 16, padding: 20, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}>
+                  <Text style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>People waiting</Text>
+                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>{liveQueue.waitingCount}</Text>
                 </View>
                 <View style={{ backgroundColor: "#EAF5F8", borderRadius: 50, padding: 12 }}>
                   <IconButton
