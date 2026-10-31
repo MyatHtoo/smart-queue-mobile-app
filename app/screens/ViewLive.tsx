@@ -176,6 +176,12 @@ export default function ViewLive() {
   };
 
   const isYourTurn = ["ready to seat", "qr-scanned", "seated"].includes(liveQueue.backendStatus.toLowerCase());
+  const progress = isYourTurn
+    ? 1
+    : liveQueue.backendStatus.toLowerCase() === "waiting"
+      ? 0.25
+      : 0;
+
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
       <ScrollView
@@ -244,6 +250,33 @@ export default function ViewLive() {
             Please wait for your number to be called
           </Text>
 
+          {/* Progress Bar Section */}
+          {!isYourTurn && (
+            <View style={{ marginBottom: 20, backgroundColor: "white", borderRadius: 16, padding: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <Text style={{ color: "#111827", fontSize: 16, fontWeight: "600" }}>
+                  Queue Progress
+                </Text>
+                <Text style={{ color: "#1E7A9B", fontSize: 18, fontWeight: "bold" }}>
+                  {Math.round(progress * 100)}%
+                </Text>
+              </View>
+              <View style={{ backgroundColor: "#e5e7eb", borderRadius: 10, overflow: "hidden", height: 12 }}>
+                <View 
+                  style={{ 
+                    width: `${progress * 100}%`,
+                    height: "100%",
+                    backgroundColor: "#1E7A9B",
+                    borderRadius: 10,
+                  }}
+                />
+              </View>
+              <Text style={{ color: "#6b7280", textAlign: "center", fontSize: 12, marginTop: 8 }}>
+                {liveQueue.waitingCount} {liveQueue.waitingCount === 1 ? 'person' : 'people'} waiting
+              </Text>
+            </View>
+          )}
+
           {/* Main Stats Cards */}
           <View style={{ marginBottom: 20 }}>
             {/* Now Serving Card */}
@@ -278,11 +311,6 @@ export default function ViewLive() {
                   <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>
                     {liveQueue.waitingCount}
                   </Text>
-                </View>
-
-                <View style={{ backgroundColor: "white", borderRadius: 16, padding: 20, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}>
-                  <Text style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>People waiting</Text>
-                  <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>{liveQueue.waitingCount}</Text>
                 </View>
                 <View style={{ backgroundColor: "#EAF5F8", borderRadius: 50, padding: 12 }}>
                   <IconButton
