@@ -176,9 +176,11 @@ export default function ViewLive() {
   };
 
   const isYourTurn = ["ready to seat", "qr-scanned", "seated"].includes(liveQueue.backendStatus.toLowerCase());
-  const progress = liveQueue.yourNumber > 0
-    ? Math.min(1, Math.max(0, (liveQueue.yourNumber - liveQueue.peopleInFront) / liveQueue.yourNumber))
-    : (isYourTurn ? 1 : 0);
+  const progress = isYourTurn
+    ? 1
+    : liveQueue.backendStatus.toLowerCase() === "waiting"
+      ? 0.25
+      : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
@@ -270,8 +272,7 @@ export default function ViewLive() {
                 />
               </View>
               <Text style={{ color: "#6b7280", textAlign: "center", fontSize: 12, marginTop: 8 }}>
-                {liveQueue.peopleInFront} {liveQueue.peopleInFront === 1 ? 'person' : 'people'} ahead
-                {liveQueue.averageServiceTime > 0 ? ` • ~${liveQueue.averageServiceTime} min each` : ''}
+                {liveQueue.waitingCount} {liveQueue.waitingCount === 1 ? 'person' : 'people'} waiting
               </Text>
             </View>
           )}
@@ -300,15 +301,15 @@ export default function ViewLive() {
               </View>
             </View>
 
-            {/* People in Front Card */}
+            {/* People Waiting Card */}
             <View style={{ backgroundColor: "white", borderRadius: 16, padding: 20, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <View>
                   <Text style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>
-                    People in Front
+                    People waiting
                   </Text>
                   <Text style={{ fontSize: 40, fontWeight: "bold", color: "#1E7A9B" }}>
-                    {liveQueue.peopleInFront}
+                    {liveQueue.waitingCount}
                   </Text>
                 </View>
 
@@ -338,9 +339,7 @@ export default function ViewLive() {
                     {liveQueue.estimatedWaitLabel}
                   </Text>
                   <Text style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
-                    {liveQueue.peopleInFront > 0
-                      ? `~${liveQueue.averageServiceTime} min per person`
-                      : 'Next in line'}
+                    {liveQueue.waitingCount > 0 ? `${liveQueue.waitingCount} waiting` : 'Next in line'}
                   </Text>
                 </View>
                 <View style={{ backgroundColor: "#EAF5F8", borderRadius: 50, padding: 12 }}>
