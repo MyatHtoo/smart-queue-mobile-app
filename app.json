@@ -16,7 +16,7 @@
         "backgroundColor": "#1E7A9B"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.myathtoo.smartqueueapp"
+      "package": "com.encrypted.smartq"
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -31,11 +31,6 @@
       "expo-font",
       "expo-notifications"
     ],
-    "extra": {
-      "eas": {
-        "projectId": "246fa8b5-67c2-4902-9a94-7281b0b3dd71"
-      }
-    },
-    "owner": "htayhtaythwe"
+    "owner": "myathtoo"
   }
 }
