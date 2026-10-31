@@ -3,7 +3,7 @@ import { IconButton, Button } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { getQueueById, getShopQueues, getShopQueueHistory } from "../../src/services/api";
+import { getQueueById, getShopQueues, getShopQueueHistory, getShops } from "../../src/services/api";
 import {
   getEstimatedWait,
   getEstimatedWaitLabel,
@@ -87,7 +87,15 @@ export default function ViewLive() {
         .filter((item) => getQueueStatus(item) === "seated")
         .sort((left, right) => new Date(right.updatedAt ?? right.createdAt ?? 0).getTime() - new Date(left.updatedAt ?? left.createdAt ?? 0).getTime());
       const latestSeatedNumber = getQueueNumber(seatedQueues[0]);
-      const waitingCount = allQueues.filter((item) => getQueueStatus(item) === "waiting").length;
+      const shopSummaries = shopId ? await getShops() : [];
+      const shopSummaryItems = Array.isArray(shopSummaries) ? shopSummaries : shopSummaries?.data ?? [];
+      const shopSummary = shopSummaryItems.find(
+        (item: any) => String(item?._id ?? item?.id ?? item?.shopId ?? "") === String(shopId),
+      );
+      const backendWaitingCount = Number(shopSummary?.activeQueueCount);
+      const waitingCount = Number.isFinite(backendWaitingCount)
+        ? backendWaitingCount
+        : allQueues.filter((item) => getQueueStatus(item) === "waiting").length;
 
       setLiveQueue({
         currentServing: latestSeatedNumber,

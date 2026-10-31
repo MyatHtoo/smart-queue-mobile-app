@@ -60,9 +60,13 @@ export function useNearbyShops() {
         const distanceMeters = position && hasShopLocation
           ? distanceInMeters(position.coords.latitude, position.coords.longitude, latitude, longitude)
           : undefined;
-        let queueCount = 0;
+        let queueCount = Number.isFinite(Number(shop?.activeQueueCount))
+          ? Number(shop.activeQueueCount)
+          : 0;
         if (id) {
-          try { queueCount = getQueueCount(await getShopQueues(id)); } catch { /* keep shop visible */ }
+          if (!Number.isFinite(Number(shop?.activeQueueCount))) {
+            try { queueCount = getQueueCount(await getShopQueues(id)); } catch { /* keep shop visible */ }
+          }
         }
         const type = Array.isArray(shop?.shopTypes)
           ? shop.shopTypes.map(labelFromValue).filter(Boolean).join(' • ')
