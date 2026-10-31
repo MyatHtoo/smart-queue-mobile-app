@@ -161,9 +161,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const permission = await NativeNotifications.getPermissionsAsync();
         const finalPermission = permission.granted ? permission : await NativeNotifications.requestPermissionsAsync();
         if (!finalPermission.granted) return;
-        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-        if (!projectId) { console.warn("EAS projectId is required to register remote push notifications"); return; }
-        const result = await NativeNotifications.getExpoPushTokenAsync({ projectId });
+        const result = await NativeNotifications.getDevicePushTokenAsync();
         await savePushToken(result.data);
       } catch (error) { console.warn("Push token registration failed", error); }
     })();
